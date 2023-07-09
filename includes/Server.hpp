@@ -6,7 +6,7 @@
 /*   By: zah <zah@student.42kl.edu.my>              +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2023/07/03 17:53:08 by zah               #+#    #+#             */
-/*   Updated: 2023/07/06 20:50:39 by zah              ###   ########.fr       */
+/*   Updated: 2023/07/09 12:46:10 by zah              ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -34,6 +34,7 @@ class Server{
 		int				init();
 		void			run();
 		std::string		receiveAll(std::string &msg, int socket_fd);
+		int				parseHeader(std::string &msg);
 		
 };
 

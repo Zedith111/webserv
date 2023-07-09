@@ -6,7 +6,7 @@
 /*   By: zah <zah@student.42kl.edu.my>              +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2023/07/05 11:35:41 by zah               #+#    #+#             */
-/*   Updated: 2023/07/06 21:20:39 by zah              ###   ########.fr       */
+/*   Updated: 2023/07/09 12:58:57 by zah              ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -91,6 +91,7 @@ int	Server::init(){
 	return (1);
 }
 
+
 void	Server::run(){
 	std::string	client_msg;
 	
@@ -102,8 +103,17 @@ void	Server::run(){
 			return ;
 		}
 		client_msg = receiveAll(client_msg, new_socket_fd);
+		if (parseHeader(client_msg)){
+			std::cout << COLOR_GREEN << "HTTP header successfully received"  << COLOR_RESET << std::endl;
+			std::string  server_msg = "HTTP/1.1 200 OK\n";
+			server_msg += "Content-Type: text/plain\n";
+			server_msg += "content-Length: 30\n";
 
-		std::cout << "Received" << std::endl << client_msg;
+			//Body
+			server_msg += "\nHello World!\n";
+			send(new_socket_fd, server_msg.c_str(), server_msg.length(), 0);
+			
+		}
 
 		// std::string  msg= "hello from webserv";
 		// int bytes_send = send(new_socket_fd, msg.c_str(), msg.size(), 0);
@@ -126,8 +136,20 @@ std::string		Server::receiveAll(std::string &msg, int socket_fd){
 		msg.append(buffer);
 		bytesRead = recv(socket_fd, buffer, BUFFER_SIZE, 0);
 	}
+	std::cout << "Recv done" << std::endl;
 	return (msg);
 
+}
+
+/**
+ * @brief Check whether header is receive fully
+ * 
+ */
+int	Server::parseHeader(std::string &msg){
+	std::string	headerEnd = "\r\n\r\n";
+	if (msg.find(headerEnd) == std::string::npos)
+		return (0);
+	return (1);
 }
 
 std::ostream&	operator<<(std::ostream& os, const serverConf& obj){

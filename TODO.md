@@ -1,3 +1,4 @@
+Redo receive
 Allow multiple client to connect to server(select)
 Test listen to all port if not specified
 Test address 0.0.0.0
@@ -5,6 +6,8 @@ Test connect to a port but used wrong port for client
 Test connect to a specific host with a client
 multiple port.
 multiple server
+Accept should not quit
+if too long not receive header, send error
 
 
 return index.html
