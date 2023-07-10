@@ -14,14 +14,15 @@
 # define WEBSERV_HPP
 
 # include <sys/types.h>
+# include <fstream>
 # include <sys/socket.h>
 # include <netdb.h>
 # include <iostream>
-# include <fstream>
 # include <string>
 # include <netinet/in.h>
 # include <arpa/inet.h>
 # include <unistd.h>
+# include <cstring>
 
 # include "Server.hpp"
 # include "ConfigParser.hpp"

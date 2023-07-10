@@ -18,20 +18,17 @@
 # include <vector>
 # include <sstream>
 
-// int	isDelim(char c);
-// std::vector<std::string> tokenize(std::string line);
-// void read();
-
 class ConfigParser{
 	private:
-		// std::string all;
+		std::string					delimiter;
+		std::string					specialChar;
 		// std::vector<std::string>	tokens;
 	public:
 		ConfigParser();
 		~ConfigParser();
+		void	tokenize(std::string &str);
+		void	handleSpecialChar(std::string &str);
 		int	parse(std::string &path);
 };
-
-int		checkDelimiter(char c);
 
 #endif
