@@ -14,10 +14,11 @@
 
 Server::Server(){
 	this->_serverConf.hostName = "localhost";
-	this->_serverConf.port = "8080";
+	this->_serverConf.portNumber.push_back(8080);
+	this->_serverConf.portNumber.push_back(8081);
+	this->_serverConf.totalPort = 2;
 	std::cout << "Current Config" << std::endl;
 	std::cout << this->_serverConf << std::endl;
-	
 }
 
 Server::~Server(){
@@ -35,174 +36,212 @@ int	Server::init(){
 	hints.ai_socktype = SOCK_STREAM;
 	hints.ai_flags = AI_PASSIVE;
 
-	int	status = getaddrinfo(
-		this->_serverConf.hostName.c_str(),
-		this->_serverConf.port.c_str(),
-		&hints,
-		&res
-	);
-	if (status != 0){
-		std::cerr << COLOR_RED << "Error: " << gai_strerror(status) << COLOR_RESET << std::endl;
-		return (0);
-	}
-	std::cout << COLOR_GREEN << "Get address info success" << COLOR_RESET << std::endl;
-	if (res->ai_next != NULL){
-		std::cout << COLOR_YELLOW << "Warning: Multiple address detected. The program will use the first one by default" << COLOR_RESET << std::endl;
-	}
-	if (DEBUG){
-		//TODO : Remove for submission as ntop is not allow
-		char	ip[INET_ADDRSTRLEN];
-		struct sockaddr_in	*ipv4 = reinterpret_cast<struct sockaddr_in *>(res->ai_addr);
-		void 	*addr = &(ipv4->sin_addr);
-		inet_ntop(res->ai_family, addr, ip, sizeof(ip));
-		std::cout << "IP: " << ip << std::endl;
-	}
+	for(int i = 0; i < this->_serverConf.totalPort; i ++){
+		int	status = getaddrinfo(
+			this->_serverConf.hostName.c_str(),
+			std::to_string(this->_serverConf.portNumber[i]).c_str(),
+			&hints,
+			&res
+		);
+		if (status != 0){
+			std::cerr << COLOR_RED << "Error: " << gai_strerror(status) << COLOR_RESET << std::endl;
+			return (0);
+		}	
+		std::cout << COLOR_GREEN << "Get address info success for port " << this->_serverConf.portNumber[i] << COLOR_RESET << std::endl;
+		if (res->ai_next != NULL){
+			std::cout << COLOR_YELLOW << "Warning: Multiple address detected. The program will use the first one by default" << COLOR_RESET << std::endl;
+		}
+		if (DEBUG){
+			//TODO : Remove for submission as ntop is not allow
+			char	ip[INET_ADDRSTRLEN];
+			struct sockaddr_in	*ipv4 = reinterpret_cast<struct sockaddr_in *>(res->ai_addr);
+			void 	*addr = &(ipv4->sin_addr);
+			inet_ntop(res->ai_family, addr, ip, sizeof(ip));
+			std::cout << "IP: " << ip << std::endl;
+		}
+		//Create Socket
+		int socket_fd = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
+		if (socket_fd < 0){
+			std::cerr << COLOR_RED << "Error. Unable to create socket for port " << this->_serverConf.portNumber[i] << strerror(errno) << std::endl;
+			return (0);
+		}
+		std::cout << COLOR_GREEN << "Socket creation sucess for port " << this->_serverConf.portNumber[i] << COLOR_RESET << std::endl;
+		// Allow port to be immediately reuse after close
+		int	reuse = 1;
+		if (setsockopt(socket_fd, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse)) < 0){
+			std::cerr << COLOR_RED << "Error. Set socket option error" << strerror(errno) << std::endl;
+			return (0);
+		} 
 
-	//Create Socket
-	this->socket_fd = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
-	if (this->socket_fd < 0){
-		std::cerr << COLOR_RED << "Error. Unable to create socket" << strerror(errno) << std::endl;
-		return (0);
-	}
-	std::cout << COLOR_GREEN << "Socket creation sucess" << COLOR_RESET << std::endl;
+		//Bind Socket
+		if (bind(socket_fd, res->ai_addr, res->ai_addrlen) < 0){
+			std::cerr << COLOR_RED << "Error. Bind failed. " << strerror(errno) << COLOR_RESET << std::endl;
+			return (0);
+		}
+		std::cout << COLOR_GREEN << "Socket binding sucess" << COLOR_RESET << std::endl;
+		if (listen(socket_fd, SOMAXCONN) < 0){
+			std::cerr << COLOR_RED << "Error. Listen failed" << strerror(errno) << std::endl;
+			return (0);
+		}
+		this->socket_fds.push_back(socket_fd);
+		std::cout << COLOR_GREEN << "Socket listening sucess" << COLOR_RESET << std::endl;
 
-	// Allow port to be immediately reuse after close
-	int	reuse = 1;
-	if (setsockopt(this->socket_fd, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse)) < 0){
-		std::cerr << COLOR_RED << "Error. Set socket option error" << strerror(errno) << std::endl;
-		return (0);
-	} 
-
-	//Bind Socket
-	if (bind(this->socket_fd, res->ai_addr, res->ai_addrlen) < 0){
-		std::cerr << COLOR_RED << "Error. Bind failed. " << strerror(errno) << COLOR_RESET << std::endl;
-		return (0);
 	}
-	std::cout << COLOR_GREEN << "Socket binding sucess" << COLOR_RESET << std::endl;
-
-	if (listen(this->socket_fd, SOMAXCONN) < 0){
-		std::cerr << COLOR_RED << "Error. Listen failed" << strerror(errno) << std::endl;
-		return (0);
-	}
-	std::cout << COLOR_GREEN << "Socket listening sucess" << COLOR_RESET << std::endl;
-	
 	std::cout << COLOR_GREEN << "Server initialization complete" << COLOR_RESET << std::endl;
 	freeaddrinfo(res);
+
+	if (DEBUG){
+		std::cout << "All socket fd" << std::endl;
+		for(size_t i = 0; i < this->socket_fds.size(); i++){
+			std::cout << this->socket_fds[i] << std::endl;
+	}
+	}
+	
 	return (1);
 }
 
 
+// void	Server::run(){
+// 	std::string	client_msg;
+// 	//TODO: put this is class member variable
+// 	fd_set		read_fds;
+// 	fd_set		read_ready_fd;
+
+// 	FD_ZERO(&read_fds);
+// 	FD_ZERO(&read_ready_fd);
+// 	for (int i = 0; i < this->_serverConf.totalPort; i ++){
+// 		FD_SET(this->socketFds[i], &read_fds);
+// 	}
+// 	while (1){
+// 		std::cout << "Waiting for connection" << std::endl;
+
+// 		memcpy(&read_ready_fd, &read_fds, sizeof(fd_set));
+		
+// 		if (select(FD_SETSIZE, &read_ready_fd, NULL, NULL, NULL) < 0){
+// 			std::cout << COLOR_RED << "Error: Select failed " << strerror(errno) << COLOR_RESET << std::endl;
+// 			return ;
+// 		}
+// 		//if select == 0
+
+// 		//Check through all fd_set
+// 		for (int i = 0; i < FD_SETSIZE; i++){
+// 			if (FD_ISSET(i, &read_ready_fd)){
+// 				for (size_t so = 0; so < this->socketFds.size(); so++){
+// 					//If the fd equal the original socket fd, means is a new connection
+// 					if (i == this->socketFds[so]){
+// 						int	client_socket = accept(this->socketFds[so], NULL, NULL);
+// 						if (client_socket < 0){
+// 							std::cout << COLOR_RED << "Error: Accept failed " << strerror(errno) << COLOR_RESET << std::endl;
+// 							//TODO: should continue
+// 							return ;
+// 						}
+// 						FD_SET(client_socket, &read_fds);
+// 					}
+// 					else{
+// 						// client_msg = receiveRequest(client_msg, i);
+// 	 					// std::string response = "HTTP/1.1 200 OK\r\n"
+//                         //     	"Content-Type: text/html\r\n"
+//                         //     	"Content-Length: 13\r\n"
+//                         //        "\r\n"
+//                         //        "Hello, client!";
+// 						// 
+// 					}
+// 				}
+// 			}
+// 		}
+// 	}
+// }
+
 void	Server::run(){
-	std::string	client_msg;
-	
+	fd_set				read_ready_fd, write_ready_fd;
+	timeval				timeout;
+
+	FD_ZERO(&this->read_fd);
+	FD_ZERO(&this->write_fd);
+	timeout.tv_sec = 1;
+	timeout.tv_usec = 0;
+	for(size_t i = 0;i < this->socket_fds.size(); i++){
+		FD_SET(this->socket_fds[i], &this->read_fd);
+	}
 	while (1){
-		std::cout << "Waiting for connection" << std::endl;
-		int new_socket_fd = accept(this->socket_fd, NULL, NULL);
-		if (new_socket_fd < 0){
-			std::cout << COLOR_RED << "Error: Accept failed" << strerror(errno) << COLOR_RESET << std::endl;
-			//TODO: should continue
+		memcpy(&read_ready_fd, &this->read_fd, sizeof(fd_set));
+		memcpy(&write_ready_fd, &this->write_fd, sizeof(fd_set));
+
+		int select_val = select(FD_SETSIZE, &read_ready_fd, &write_ready_fd, NULL, &timeout);
+		if (select_val < 0){
+			std::cout << COLOR_RED << "Error. select failed. " << strerror(errno) << COLOR_RESET << std::endl;
 			return ;
 		}
-		client_msg = receiveAll(client_msg, new_socket_fd);
-		std::cout << "Client message: " << client_msg <<std::endl;
-
-
-	 std::string response = "HTTP/1.1 200 OK\r\n"
-                               "Content-Type: text/html\r\n"
-                               "Content-Length: 13\r\n"
-                               "\r\n"
-                               "Hello, client!";
-		send(new_socket_fd, response.c_str(), response.length(), 0);
-
-
-		// int	byteRead = recv(new_socket_fd, (void*)client_msg.c_str(), BUFFER_SIZE - 1, 0);
-		// while (byteRead > 0)
-		// {
-		// 	buffer[byteRead] = '\0';
-		// 	client_msg.append(buffer);
-		// 	if (parseHeader(client_msg))
-		// 		break;
-		// }
-
-		// if (byteRead < 0){
-		// 	//throw exception
-		// 	std::cout << COLOR_RED << "Error: Receive failed" << strerror(errno) << COLOR_RESET << std::endl;
-		// 	return ;
-		// }
-		// else{
-		// 	std::cout << COLOR_GREEN << "HTTP header successfully received"  << COLOR_RESET << std::endl;
-		// 	std::string  server_msg = "HTTP/1.1 200 OK\n";
-		// 	server_msg += "Content-Type: text/plain\n";
-		// 	server_msg += "content-Length: 30\n";
-
-		// 	//Body
-		// 	server_msg += "\nHello World!\n";
-		// 	send(new_socket_fd, server_msg.c_str(), server_msg.length(), 0);
-			
-		// }
-		
-		// if (byteRead < 0){
-		// 	//throw exception
-		// 	std::cout << COLOR_RED << "Error: Receive failed" << strerror(errno) << COLOR_RESET << std::endl;
-		// 	return ;
-		// }
-		// if (parseHeader(client_msg)){
-		// 	std::cout << COLOR_GREEN << "HTTP header successfully received"  << COLOR_RESET << std::endl;
-		// 	std::string  server_msg = "HTTP/1.1 200 OK\n";
-		// 	server_msg += "Content-Type: text/plain\n";
-		// 	server_msg += "content-Length: 30\n";
-
-		// 	//Body
-		// 	server_msg += "\nHello World!\n";
-		// 	send(new_socket_fd, server_msg.c_str(), server_msg.length(), 0);
-			
-		// }
-		// else{
-		// 	while (byteRead > 0)
-		// 	{
-		// 		buffer[BUFFER_SIZE] = '\0';
-		// 		client_msg.append(buffer);
-		// 		byteRead = recv(new_socket_fd, buffer, BUFFER_SIZE, 0);
-		// 	}
-			
-		// }
-
-
-		// std::string  msg= "hello from webserv";
-		// int bytes_send = send(new_socket_fd, msg.c_str(), msg.size(), 0);
-		// std::cout << bytes_send << " bytes send" << std::endl;
+		for (int i = 0; i < FD_SETSIZE; i ++){
+			if (!FD_ISSET(i, &read_ready_fd))
+				continue ;
+			int	is_new_socket = 0;
+			for (size_t fd = 0; fd < this->socket_fds.size(); fd++){
+				if (i == this->socket_fds[fd]){
+					int new_socket = acceptNewConnection(this->socket_fds[fd]);
+					if (DEBUG){
+						std::cout << new_socket << "joined at " << this->socket_fds[fd] << std::endl;
+					}
+					if (new_socket < 0)
+						continue;
+					FD_SET(new_socket, &this->read_fd);
+					is_new_socket = 1;
+					break ;
+				}
+			}
+			if (!is_new_socket){
+				handleConnection(i);
+        		FD_CLR(i, &this->read_fd);
+			}
+		}
 	}
 }
 
-std::string		Server::receiveAll(std::string &msg, int socket_fd){
+
+int	Server::acceptNewConnection(int socket_fd){
+	int	new_socket = accept(socket_fd, NULL, NULL);
+	if (new_socket < 0){
+		std::cout << COLOR_RED << "Error: Accept failed " << strerror(errno) << COLOR_RESET << std::endl;
+		return (-1);
+	}
+	return (new_socket);
+}
+
+void	Server::handleConnection(int socket_fd){
+	std::string client_msg = receiveRequest(socket_fd);
+	
+	// if (DEBUG)
+	// 	std::cout << client_msg << std::endl;
+	std::string response = "HTTP/1.1 200 OK\r\n"
+                            "Content-Type: text/html\r\n"
+                            "Content-Length: 13\r\n"
+                            "\r\n"
+                            "Hello, client!";
+	send(socket_fd, response.c_str(), response.length(), 0); 
+	// close(socket_fd);		
+}
+
+std::string		Server::receiveRequest(int socket_fd){
+	std::string msg;
 	int		bytesRead;
 	char	buffer[BUFFER_SIZE];
-
 	while (1)
 	{
 		memset(buffer, 0, BUFFER_SIZE);
 		bytesRead = recv(socket_fd, buffer, BUFFER_SIZE, 0);
+		if (bytesRead == 0){
+			std::cout << "Client hang out" << std::endl;
+		}
 		if (bytesRead < 0){
-			//throw exception;
+			//TODO:throw exception;
 			std::cout << "Receive error" << std::endl;
 			return (msg);
 		}
-		msg.append(buffer);
-		if (parseHeader(msg))
+		msg.append(buffer, bytesRead);
+		if (parseHttpHeader(msg))
 			break;
 	}
 	return (msg);
-}
-
-/**
- * @brief Check whether header is receive fully
- * 
- */
-int	Server::parseHeader(std::string &msg){
-	std::string	headerEnd = "\r\n\r\n";
-	if (msg.find(headerEnd) == std::string::npos)
-		return (0);
-	return (1);
 }
 
 std::ostream&	operator<<(std::ostream& os, const serverConf& obj){

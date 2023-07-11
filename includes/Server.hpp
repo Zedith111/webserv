@@ -14,27 +14,40 @@
 # define SERVER_HPP
 
 # include "Webserv.hpp"
+# include "serverUtils.hpp"
 # include <vector>
 
-# define BUFFER_SIZE 1000
+# define BUFFER_SIZE 1024
 
+/**
+ * choose port and host(host refer to ip address)
+ * server_name (default to localhost)
+ * if multiple server use same port and host. The first will be used
+ * default error page
+ * limit client body size
+ * set up route
+ */
 struct serverConf{
 	std::string hostName;
 	std::string	port;
+	int			totalPort;
+	std::vector<int>	portNumber;
 };
 
 class Server{
 	private:
 		serverConf			_serverConf;
-		int					socket_fd;
+		std::vector<int>	socket_fds;
+		fd_set				read_fd, write_fd;
 	
 	public:
 		Server();
 		~Server();
 		int				init();
 		void			run();
-		std::string		receiveAll(std::string &msg, int socket_fd);
-		int				parseHeader(std::string &msg);
+		int				acceptNewConnection(int socket_fd);
+		void			handleConnection(int socket_fd);
+		std::string		receiveRequest(int socket_fd);
 		
 };
 

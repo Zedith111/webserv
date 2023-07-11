@@ -14,8 +14,9 @@
 # define WEBSERV_HPP
 
 # include <sys/types.h>
-# include <fstream>
 # include <sys/socket.h>
+# include <sys/time.h>
+# include <fstream>
 # include <netdb.h>
 # include <iostream>
 # include <string>
@@ -23,6 +24,7 @@
 # include <arpa/inet.h>
 # include <unistd.h>
 # include <cstring>
+# include <fcntl.h>
 
 # include "Server.hpp"
 # include "ConfigParser.hpp"
@@ -35,18 +37,6 @@
 # ifndef DEBUG
 #  define DEBUG 0
 # endif
-
-// class Webserv{
-// 	private:
-// 	public:
-// 		Webserv();
-// 		~Webserv();
-// 		Webserv(const Webserv &base);
-// 		Webserv	&operator=(const Webserv &rhs);
-
-// 		init();
-
-// };
 
 
 
