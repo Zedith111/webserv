@@ -75,11 +75,11 @@ class Tokenizer{
 		//Special char only
 		void handleSpecial(std::string &current){
 			//find both special char and normal
-			std::cout << "Current: " << current << std::endl;
+			// std::cout << "Current: " << current << std::endl;
 			int specialChar = current.find_first_of(this->special);
 			int normalChar = current.find_first_not_of(this->special);
-			std::cout << "Special: " << special << std::endl;
-			std::cout << "Normal: " << normalChar << std::endl;
+			// std::cout << "Special: " << special << std::endl;
+			// std::cout << "Normal: " << normalChar << std::endl;
 		}
 
 		void Tokenize(){

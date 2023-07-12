@@ -3,13 +3,14 @@ INCLUDE	=	./includes
 SRC_DIR	=	./srcs
 OBJ_DIR	=	./obj
 CXX		=	c++
-CFLAGS	=	-Wall -Wextra -Werror -g3 -fsanitize=address -std=c++98
+CFLAGS	=	-Wall -Wextra -Werror -g3 -fsanitize=address -std=c++98 -O3
 RM		=	rm -f
 SRCS	=	$(shell find $(SRC_DIR) -name '*.cpp' -execdir basename {} \;)
 OBJS	:=	$(SRCS:%.cpp=$(OBJ_DIR)/%.o)
 
 ifeq ($(DB), 1)
 	CFLAGS += -D DEBUG=1
+	CFLAGS += -pg
 endif
 
 all	:	

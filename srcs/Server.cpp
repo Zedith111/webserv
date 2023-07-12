@@ -168,7 +168,7 @@ void	Server::run(){
 		memcpy(&write_ready_fd, &this->write_fd, sizeof(fd_set));
 
 		int select_val = select(FD_SETSIZE, &read_ready_fd, &write_ready_fd, NULL, &timeout);
-		if (select_val < 0){
+		if (select_val <= 0){
 			std::cout << COLOR_RED << "Error. select failed. " << strerror(errno) << COLOR_RESET << std::endl;
 			return ;
 		}
@@ -191,8 +191,15 @@ void	Server::run(){
 			}
 			if (!is_new_socket){
 				handleConnection(i);
+				FD_SET(i, &this->write_fd);
         		FD_CLR(i, &this->read_fd);
 			}
+		}
+		//Write
+		for (int i = 0; i < FD_SETSIZE; i ++){
+			if (!FD_ISSET(i, &write_ready_fd))
+				continue ;
+			//send
 		}
 	}
 }
@@ -204,10 +211,12 @@ int	Server::acceptNewConnection(int socket_fd){
 		std::cout << COLOR_RED << "Error: Accept failed " << strerror(errno) << COLOR_RESET << std::endl;
 		return (-1);
 	}
+	fcntl(new_socket, F_SETFL, O_NONBLOCK);
 	return (new_socket);
 }
 
 void	Server::handleConnection(int socket_fd){
+	int client_status;
 	std::string client_msg = receiveRequest(socket_fd);
 	
 	// if (DEBUG)
@@ -218,7 +227,9 @@ void	Server::handleConnection(int socket_fd){
                             "\r\n"
                             "Hello, client!";
 	send(socket_fd, response.c_str(), response.length(), 0); 
-	// close(socket_fd);		
+	// close(socket_fd);
+
+	//Do request	
 }
 
 std::string		Server::receiveRequest(int socket_fd){
@@ -234,6 +245,7 @@ std::string		Server::receiveRequest(int socket_fd){
 		}
 		if (bytesRead < 0){
 			//TODO:throw exception;
+			//catch->close the socket
 			std::cout << "Receive error" << std::endl;
 			return (msg);
 		}
