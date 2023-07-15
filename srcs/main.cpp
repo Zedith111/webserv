@@ -13,6 +13,17 @@
 #include "Webserv.hpp"
 
 int	main(int argc, char **argv){
+
+	if (argc == 2){
+		std::string input = argv[1];
+		std::string delim = " ";
+		std::string special = ".,";
+		Tokenizer tokenizer(input, delim, special);
+		tokenizer.Tokenize();
+		tokenizer.display();
+		return (0);
+	}
+
 	std::string	filePath = "config/default.conf";
 	if (argc > 2){
 		std::cout << COLOR_RED << " Error. Usage : webserv <Configuration File>"  << COLOR_RESET << std::endl;

@@ -16,6 +16,7 @@
 # include "Webserv.hpp"
 # include "serverUtils.hpp"
 # include <vector>
+# include <sys/select.h>
 
 # define BUFFER_SIZE 1024
 
@@ -47,6 +48,7 @@ class Server{
 		void			run();
 		int				acceptNewConnection(int socket_fd);
 		void			handleConnection(int socket_fd);
+		void			sendResponse(int socket_fd);
 		std::string		receiveRequest(int socket_fd);
 		
 };

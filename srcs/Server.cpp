@@ -101,65 +101,14 @@ int	Server::init(){
 }
 
 
-// void	Server::run(){
-// 	std::string	client_msg;
-// 	//TODO: put this is class member variable
-// 	fd_set		read_fds;
-// 	fd_set		read_ready_fd;
-
-// 	FD_ZERO(&read_fds);
-// 	FD_ZERO(&read_ready_fd);
-// 	for (int i = 0; i < this->_serverConf.totalPort; i ++){
-// 		FD_SET(this->socketFds[i], &read_fds);
-// 	}
-// 	while (1){
-// 		std::cout << "Waiting for connection" << std::endl;
-
-// 		memcpy(&read_ready_fd, &read_fds, sizeof(fd_set));
-		
-// 		if (select(FD_SETSIZE, &read_ready_fd, NULL, NULL, NULL) < 0){
-// 			std::cout << COLOR_RED << "Error: Select failed " << strerror(errno) << COLOR_RESET << std::endl;
-// 			return ;
-// 		}
-// 		//if select == 0
-
-// 		//Check through all fd_set
-// 		for (int i = 0; i < FD_SETSIZE; i++){
-// 			if (FD_ISSET(i, &read_ready_fd)){
-// 				for (size_t so = 0; so < this->socketFds.size(); so++){
-// 					//If the fd equal the original socket fd, means is a new connection
-// 					if (i == this->socketFds[so]){
-// 						int	client_socket = accept(this->socketFds[so], NULL, NULL);
-// 						if (client_socket < 0){
-// 							std::cout << COLOR_RED << "Error: Accept failed " << strerror(errno) << COLOR_RESET << std::endl;
-// 							//TODO: should continue
-// 							return ;
-// 						}
-// 						FD_SET(client_socket, &read_fds);
-// 					}
-// 					else{
-// 						// client_msg = receiveRequest(client_msg, i);
-// 	 					// std::string response = "HTTP/1.1 200 OK\r\n"
-//                         //     	"Content-Type: text/html\r\n"
-//                         //     	"Content-Length: 13\r\n"
-//                         //        "\r\n"
-//                         //        "Hello, client!";
-// 						// 
-// 					}
-// 				}
-// 			}
-// 		}
-// 	}
-// }
-
 void	Server::run(){
 	fd_set				read_ready_fd, write_ready_fd;
-	timeval				timeout;
+	struct timeval				timeout;
 
-	FD_ZERO(&this->read_fd);
-	FD_ZERO(&this->write_fd);
 	timeout.tv_sec = 1;
 	timeout.tv_usec = 0;
+	FD_ZERO(&this->read_fd);
+	FD_ZERO(&this->write_fd);
 	for(size_t i = 0;i < this->socket_fds.size(); i++){
 		FD_SET(this->socket_fds[i], &this->read_fd);
 	}
@@ -168,7 +117,7 @@ void	Server::run(){
 		memcpy(&write_ready_fd, &this->write_fd, sizeof(fd_set));
 
 		int select_val = select(FD_SETSIZE, &read_ready_fd, &write_ready_fd, NULL, &timeout);
-		if (select_val <= 0){
+		if (select_val < 0){
 			std::cout << COLOR_RED << "Error. select failed. " << strerror(errno) << COLOR_RESET << std::endl;
 			return ;
 		}
@@ -199,7 +148,8 @@ void	Server::run(){
 		for (int i = 0; i < FD_SETSIZE; i ++){
 			if (!FD_ISSET(i, &write_ready_fd))
 				continue ;
-			//send
+			sendResponse(i);
+			FD_CLR(i, &this->write_fd);
 		}
 	}
 }
@@ -209,6 +159,7 @@ int	Server::acceptNewConnection(int socket_fd){
 	int	new_socket = accept(socket_fd, NULL, NULL);
 	if (new_socket < 0){
 		std::cout << COLOR_RED << "Error: Accept failed " << strerror(errno) << COLOR_RESET << std::endl;
+		close(socket_fd);
 		return (-1);
 	}
 	fcntl(new_socket, F_SETFL, O_NONBLOCK);
@@ -216,20 +167,30 @@ int	Server::acceptNewConnection(int socket_fd){
 }
 
 void	Server::handleConnection(int socket_fd){
-	int client_status;
+	// int client_status;
 	std::string client_msg = receiveRequest(socket_fd);
 	
-	// if (DEBUG)
-	// 	std::cout << client_msg << std::endl;
+	if (DEBUG)
+		std::cout << client_msg << std::endl;
+	// std::string response = "HTTP/1.1 200 OK\r\n"
+    //                         "Content-Type: text/html\r\n"
+    //                         "Content-Length: 13\r\n"
+    //                         "\r\n"
+    //                         "Hello, client!";
+	// send(socket_fd, response.c_str(), response.length(), 0); 
+	// close(socket_fd);
+
+	//Do request	
+}
+
+void	Server::sendResponse(int socket_fd){
 	std::string response = "HTTP/1.1 200 OK\r\n"
                             "Content-Type: text/html\r\n"
                             "Content-Length: 13\r\n"
                             "\r\n"
                             "Hello, client!";
 	send(socket_fd, response.c_str(), response.length(), 0); 
-	// close(socket_fd);
-
-	//Do request	
+	close(socket_fd);
 }
 
 std::string		Server::receiveRequest(int socket_fd){
