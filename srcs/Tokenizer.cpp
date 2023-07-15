@@ -61,36 +61,38 @@ void	Tokenizer::getNextToken(){
 		this->tokens.push_back(temp);
 }
 
-/**
- * @brief In handle special, there input has 4 cases
- * 1. Only special character 
- * 2. In the front of the string
- * 3. In the middle of the string
- * 4. In the back of the string
- * @param current 
- */
+
 void	Tokenizer::handleSpecial(std::string &current){
-	std::string	temp;
-	std::string	res;
-	std::string::size_type	special = current.find_first_of(this->special);
-	std::string::size_type	normal = current.find_first_not_of(this->special);
+	std::string::size_type	specialChar = current.find_first_of(special);
+	std::string::size_type	normalChar = current.find_first_not_of(special);
+	std::string				temp;
 
-	if (normal == std::string::npos){
-		for (size_t i = 0; i < current.length(); i++)
-			this->tokens.push_back(current.substr(i, 1));
+	//String consist only special character
+	if (normalChar == std::string::npos){
+		for (size_t i = 0; i < current.length(); i++){
+			temp = current.substr(i, 1);
+			this->tokens.push_back(temp);
+		}
 	}
-	else if ()
 	else{
-		temp = current.substr(0, special);
-		this->tokens.push_back(temp);
-		temp = current.substr(special, 1);
-		this->tokens.push_back(temp);
-		temp = current.substr(special + 1, current.length() - special - 1);
-		this->tokens.push_back(temp);
+		std::string::size_type begin = 0;
+		std::string::size_type end;
+		while (normalChar != specialChar){
+			//Special character is in the front, split by one
+			if (normalChar > specialChar){
+				end = 1;
+				temp = current.substr(begin, end - begin);
+				this->tokens.push_back(temp);
+				begin += 1;
+			}
+			else{
+				end = current.find_first_of(special, begin);
+				temp = current.substr(begin, end - begin);
+				this->tokens.push_back(temp);
+				begin = end;
+			}
+			specialChar = current.find_first_of(special, begin);
+			normalChar = current.find_first_not_of(special, begin);
+		}
 	}
-
-	while (special != normal){
-		handleSpecial(res);
-	}
-	
 }

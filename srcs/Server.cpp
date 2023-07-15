@@ -29,6 +29,7 @@ Server::~Server(){
 int	Server::init(){
 	struct addrinfo hints;
 	struct addrinfo *res;
+	std::stringstream ss;
 
 	//Get Address info
 	memset(&hints, 0, sizeof(hints));
@@ -37,9 +38,10 @@ int	Server::init(){
 	hints.ai_flags = AI_PASSIVE;
 
 	for(int i = 0; i < this->_serverConf.totalPort; i ++){
+		ss << this->_serverConf.portNumber[i];
 		int	status = getaddrinfo(
 			this->_serverConf.hostName.c_str(),
-			std::to_string(this->_serverConf.portNumber[i]).c_str(),
+			ss.str().c_str(),
 			&hints,
 			&res
 		);

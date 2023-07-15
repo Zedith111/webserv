@@ -1,5 +1,7 @@
 
-Tokenizer
+parser->data structure
+    map-><path, actual path>
+Add map to store request and response
 separate header and body
 nginx config
 
