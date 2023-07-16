@@ -16,25 +16,21 @@ Tokenizer::Tokenizer(){
 
 }
 
-Tokenizer::Tokenizer(std::string &msg, std::string &delim, std::string &special){
-	this->msg = msg;
+Tokenizer::Tokenizer(std::string &delim, std::string &special){
 	this->delim = delim;
 	this->special = special;
-
-	this->begin = msg.find_first_not_of(delim);
-	this->end = msg.find_first_of(delim, this->begin);
 }
 
 Tokenizer::~Tokenizer(){
 
 }
 
-void	Tokenizer::Tokenize(){
+std::vector<std::string>	&Tokenizer::Tokenize(std::string msg){
+	this->msg = msg;
+	this->begin = msg.find_first_not_of(delim);
+	this->end = msg.find_first_of(delim, this->begin);
 	while (begin != end)
 		getNextToken();
-}
-
-std::vector<std::string> Tokenizer::getTokens(){
 	return (this->tokens);
 }
 

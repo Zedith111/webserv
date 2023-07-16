@@ -15,6 +15,7 @@
 ConfigParser::ConfigParser(){
 	this->delimiter = " \r\t\n";
 	this->specialChar = ";{}";
+	this->tokenizer = Tokenizer(this->delimiter, this->specialChar);
 }
 
 ConfigParser::~ConfigParser(){
@@ -23,62 +24,31 @@ ConfigParser::~ConfigParser(){
 
 int	ConfigParser::parse(std::string &path){
 	std::ifstream	file(path.c_str());
-	if (file.is_open()){
-		std::stringstream	buffer;
 
-		buffer << file.rdbuf();
-		std::cout << buffer.str() << std::endl;
-		file.close();
-		return (1);
-		// return (0);
-	}
-	else{
+	if (!file.is_open()){
 		std::cout << COLOR_RED << "Error. Failed to open file" << path << COLOR_RESET << std::endl;
 		return (0);
 	}
-}
+	std::stringstream	buffer;
+	std::string keys[] = {"server", "listen", "server_name"};
+	serverConf *currentConf = NULL;
 
-/**
- * @brief Check for both delimiter and special character.
- * Will split both delimiter and special character, but put
- * special character back into the vector.
- */
-void	ConfigParser::tokenize(std::string &str){
-	size_t	begin = str.find_first_not_of(this->delimiter);
-	size_t	end = str.find_first_of(this->delimiter, begin);
+	buffer << file.rdbuf();
+	this->tokens = this->tokenizer.Tokenize(buffer.str());
 
-	while (begin != end){
-		std::string token;
-		if (begin != std::string::npos && end != std::string::npos){
-			token = str.substr(begin, end - begin);
-			begin = str.find_first_not_of(this->delimiter, end);
-			end = str.find_first_of(this->delimiter, begin);
+	for (size_t i = 0;i < this->tokens.size(); i ++){
+			int indent_level = 0;
+			if (this->tokens[i] == "{")
+				indent_level += 1;
+			else if (this->tokens[i] == "}")
+				indent_level -= 1;
+			else if (this->tokens[i] == "server"){
+				if (currentConf != NULL)
+					this->serverConfs.push_back(*currentConf);
+			}
 		}
-		else if (begin != std::string::npos && end == std::string::npos){
-			token = str.substr(begin, str.length() - begin);
-			begin = str.find_first_not_of(this->delimiter, end);
-		}
-		if (token.find_first_of(this->specialChar) != std::string::npos && token.length() > 1){
-			handleSpecialChar(token);
-		}
-		else{
-			// this->tokens.push_back(token);
-		}
-	}
-}
-
-void	ConfigParser::handleSpecialChar(std::string &str){
-	(void) str;
-	// int	pos = str.find_first_of(this->specialChar);
+		file.close();
+		// return (1);
+		return (0);
 	
-	// std::string token = str.substr(0 ,pos);
-
-	// if (token.length() > 0)
-	// 	this->tokens.push_back(token);
-	// token = str.substr(pos, 1);
-	// if (token.length() > 0)
-	// 	this->tokens.push_back(token);
-	// std::string remain = str.substr(pos + 1, str.length() - pos - 1);
-	// if (rem)
-
 }

@@ -35,18 +35,17 @@ class Tokenizer{
 		std::string::size_type	begin;
 		std::string::size_type	end;
 
-		Tokenizer();
 
 		//Class member function
 		void	getNextToken();
 		void	handleSpecial(std::string &current);
 
 	public :
-		Tokenizer(std::string &msg, std::string &delim, std::string &special);
+		Tokenizer();
+		Tokenizer(std::string &delim, std::string &special);
 		~Tokenizer();
-		void	Tokenize();
-		std::vector<std::string> getTokens();
-		void	display();
+		std::vector<std::string>	&Tokenize(std::string msg);
+		void						display();
 };
 
 #endif

@@ -11,18 +11,10 @@
 /* ************************************************************************** */
 
 #include "Webserv.hpp"
+#include "Server.hpp"
+#include "ConfigParser.hpp"
 
 int	main(int argc, char **argv){
-
-	if (argc == 2){
-		std::string input = argv[1];
-		std::string delim = " ";
-		std::string special = ".,";
-		Tokenizer tokenizer(input, delim, special);
-		tokenizer.Tokenize();
-		tokenizer.display();
-		return (0);
-	}
 
 	std::string	filePath = "config/default.conf";
 	if (argc > 2){
@@ -34,9 +26,9 @@ int	main(int argc, char **argv){
 	else{
 		filePath = argv[1];
 	}
-	// ConfigParser confParser;
-	// if (!confParser.parse(filePath))
-	// 	return (1);
+	ConfigParser confParser;
+	if (!confParser.parse(filePath))
+		return (1);
 	Server server;
 	if (!server.init())
 		return (1);

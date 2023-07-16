@@ -27,13 +27,13 @@
  * default error page
  * limit client body size
  * set up route
- */
-struct serverConf{
-	std::string hostName;
-	std::string	port;
-	int			totalPort;
-	std::vector<int>	portNumber;
-};
+//  */
+// struct serverConf{
+// 	std::string hostName;
+// 	std::string	port;
+// 	int			totalPort;
+// 	std::vector<int>	portNumber;
+// };
 
 class Server{
 	private:

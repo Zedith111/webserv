@@ -13,21 +13,21 @@
 #ifndef CONFIGPARSER_HPP
 # define CONFIGPARSER_HPP
 
-# include "Webserv.hpp"
+# include "Tokenizer.hpp"
 
 # include <vector>
 # include <sstream>
 
 class ConfigParser{
 	private:
+		Tokenizer					tokenizer;
 		std::string					delimiter;
 		std::string					specialChar;
-		// std::vector<std::string>	tokens;
+		std::vector<std::string>	tokens;
+		std::vector<serverConf>		serverConfs;
 	public:
 		ConfigParser();
 		~ConfigParser();
-		void	tokenize(std::string &str);
-		void	handleSpecialChar(std::string &str);
 		int	parse(std::string &path);
 };
 
