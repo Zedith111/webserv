@@ -43,9 +43,15 @@ int	ConfigParser::parse(std::string &path){
 			else if (this->tokens[i] == "}")
 				indent_level -= 1;
 			else if (this->tokens[i] == "server"){
-				if (currentConf != NULL)
+				if (currentConf != NULL){
 					this->serverConfs.push_back(*currentConf);
+					currentConf = NULL;
+				}
 			}
+			else{
+			
+			}
+
 		}
 		file.close();
 		// return (1);

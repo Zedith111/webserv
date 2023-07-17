@@ -1,6 +1,9 @@
-
+Complete parser
+Seprate request header and body
+Do get request
 parser->data structure
     map-><path, actual path>
+location->data structure
 Add map to store request and response
 separate header and body
 nginx config
