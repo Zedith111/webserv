@@ -1,6 +1,16 @@
-Complete parser
-Seprate request header and body
+# Complete parser
+    understand server name and roor variable
+    Get all location block variable and prepare struct
+
+# Handle request
+    Check receive body
+   Seprate request header and body
+
+Try connect to 128 and use curl
+Recevie all request
 Do get request
+unknown method
+not allow method in location block
 parser->data structure
     map-><path, actual path>
 location->data structure

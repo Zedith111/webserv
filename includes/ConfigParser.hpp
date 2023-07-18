@@ -25,6 +25,14 @@ class ConfigParser{
 		std::string					specialChar;
 		std::vector<std::string>	tokens;
 		std::vector<serverConf>		serverConfs;
+
+
+		int	parseToken();
+		int	parseServer(size_t &current, int indent_level, serverConf *current_conf, std::string *key, int key_size);
+		int	parseLocation(size_t &current, int indent_level, serverConf *current_conf);
+		int	addPort(std::string &port);
+		int	parseListen(size_t &current, serverConf *current_conf);
+		int	parseServerName(size_t &current, serverConf *current_conf);
 	public:
 		ConfigParser();
 		~ConfigParser();

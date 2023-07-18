@@ -13,12 +13,12 @@
 #include "Server.hpp"
 
 Server::Server(){
-	this->_serverConf.hostName = "localhost";
-	this->_serverConf.portNumber.push_back(8080);
-	this->_serverConf.portNumber.push_back(8081);
-	this->_serverConf.totalPort = 2;
+	this->conf.host = "localhost";
+	this->conf.port_number.push_back("8080");
+	this->conf.port_number.push_back("8081");
+	this->conf.total_port = 2;
 	std::cout << "Current Config" << std::endl;
-	std::cout << this->_serverConf << std::endl;
+	std::cout << this->conf << std::endl;
 }
 
 Server::~Server(){
@@ -29,7 +29,6 @@ Server::~Server(){
 int	Server::init(){
 	struct addrinfo hints;
 	struct addrinfo *res;
-	std::stringstream ss;
 
 	//Get Address info
 	memset(&hints, 0, sizeof(hints));
@@ -37,11 +36,10 @@ int	Server::init(){
 	hints.ai_socktype = SOCK_STREAM;
 	hints.ai_flags = AI_PASSIVE;
 
-	for(int i = 0; i < this->_serverConf.totalPort; i ++){
-		ss << this->_serverConf.portNumber[i];
+	for (int i = 0; i < this->conf.total_port; i++){
 		int	status = getaddrinfo(
-			this->_serverConf.hostName.c_str(),
-			ss.str().c_str(),
+			this->conf.host.c_str(),
+			this->conf.port_number[i].c_str(),
 			&hints,
 			&res
 		);
@@ -49,7 +47,7 @@ int	Server::init(){
 			std::cerr << COLOR_RED << "Error: " << gai_strerror(status) << COLOR_RESET << std::endl;
 			return (0);
 		}	
-		std::cout << COLOR_GREEN << "Get address info success for port " << this->_serverConf.portNumber[i] << COLOR_RESET << std::endl;
+		std::cout << COLOR_GREEN << "Get address info success for port " << this->conf.port_number[i] << COLOR_RESET << std::endl;
 		if (res->ai_next != NULL){
 			std::cout << COLOR_YELLOW << "Warning: Multiple address detected. The program will use the first one by default" << COLOR_RESET << std::endl;
 		}
@@ -64,10 +62,10 @@ int	Server::init(){
 		//Create Socket
 		int socket_fd = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
 		if (socket_fd < 0){
-			std::cerr << COLOR_RED << "Error. Unable to create socket for port " << this->_serverConf.portNumber[i] << strerror(errno) << std::endl;
+			std::cerr << COLOR_RED << "Error. Unable to create socket for port " << this->conf.port_number[i] << strerror(errno) << std::endl;
 			return (0);
 		}
-		std::cout << COLOR_GREEN << "Socket creation sucess for port " << this->_serverConf.portNumber[i] << COLOR_RESET << std::endl;
+		std::cout << COLOR_GREEN << "Socket creation sucess for port " << this->conf.port_number[i] << COLOR_RESET << std::endl;
 		// Allow port to be immediately reuse after close
 		int	reuse = 1;
 		if (setsockopt(socket_fd, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse)) < 0){
@@ -94,7 +92,7 @@ int	Server::init(){
 
 	if (DEBUG){
 		std::cout << "All socket fd" << std::endl;
-		for(size_t i = 0; i < this->socket_fds.size(); i++){
+		for (size_t i = 0; i < this->socket_fds.size(); i++){
 			std::cout << this->socket_fds[i] << std::endl;
 	}
 	}
@@ -111,7 +109,7 @@ void	Server::run(){
 	timeout.tv_usec = 0;
 	FD_ZERO(&this->read_fd);
 	FD_ZERO(&this->write_fd);
-	for(size_t i = 0;i < this->socket_fds.size(); i++){
+	for (size_t i = 0;i < this->socket_fds.size(); i++){
 		FD_SET(this->socket_fds[i], &this->read_fd);
 	}
 	while (1){
@@ -123,7 +121,7 @@ void	Server::run(){
 			std::cout << COLOR_RED << "Error. select failed. " << strerror(errno) << COLOR_RESET << std::endl;
 			return ;
 		}
-		for (int i = 0; i < FD_SETSIZE; i ++){
+		for (int i = 0; i < FD_SETSIZE; i++){
 			if (!FD_ISSET(i, &read_ready_fd))
 				continue ;
 			int	is_new_socket = 0;
@@ -131,7 +129,7 @@ void	Server::run(){
 				if (i == this->socket_fds[fd]){
 					int new_socket = acceptNewConnection(this->socket_fds[fd]);
 					if (DEBUG){
-						std::cout << new_socket << "joined at " << this->socket_fds[fd] << std::endl;
+						std::cout << new_socket << "new client joined at " << this->socket_fds[fd] << std::endl;
 					}
 					if (new_socket < 0)
 						continue;
@@ -144,12 +142,15 @@ void	Server::run(){
 				handleConnection(i);
 				FD_SET(i, &this->write_fd);
         		FD_CLR(i, &this->read_fd);
+				if (DEBUG)
+					std::cout << this->client_requests[i] << std::endl;
 			}
 		}
 		//Write
-		for (int i = 0; i < FD_SETSIZE; i ++){
+		for (int i = 0; i < FD_SETSIZE; i++){
 			if (!FD_ISSET(i, &write_ready_fd))
 				continue ;
+			//parse request
 			sendResponse(i);
 			FD_CLR(i, &this->write_fd);
 		}
@@ -169,20 +170,28 @@ int	Server::acceptNewConnection(int socket_fd){
 }
 
 void	Server::handleConnection(int socket_fd){
-	// int client_status;
-	std::string client_msg = receiveRequest(socket_fd);
-	
-	if (DEBUG)
-		std::cout << client_msg << std::endl;
-	// std::string response = "HTTP/1.1 200 OK\r\n"
-    //                         "Content-Type: text/html\r\n"
-    //                         "Content-Length: 13\r\n"
-    //                         "\r\n"
-    //                         "Hello, client!";
-	// send(socket_fd, response.c_str(), response.length(), 0); 
-	// close(socket_fd);
+	int		bytes_read;
+	char	buffer[BUFFER_SIZE];
 
-	//Do request	
+	while (1){
+		memset(buffer, 0, BUFFER_SIZE);
+		bytes_read = recv(socket_fd, buffer, BUFFER_SIZE, 0);
+		if (bytes_read == 0){
+			std::cout << "Client hangout at " << socket_fd << std::endl;
+			this->client_requests.erase(socket_fd);
+			close(socket_fd);
+			return ;
+		}
+		if (bytes_read < 0){
+			std::cout << "Error. recv failed at " << socket_fd << std::endl;
+			this->client_requests.erase(socket_fd);
+			close(socket_fd);
+			return ;
+		}
+		this->client_requests[socket_fd].append(buffer, bytes_read);
+		if (parseHttpHeader(this->client_requests[socket_fd]) == 1)
+			return ;
+	}
 }
 
 void	Server::sendResponse(int socket_fd){
@@ -192,36 +201,30 @@ void	Server::sendResponse(int socket_fd){
                             "\r\n"
                             "Hello, client!";
 	send(socket_fd, response.c_str(), response.length(), 0); 
+	this->client_requests.erase(socket_fd);
 	close(socket_fd);
 }
 
-std::string		Server::receiveRequest(int socket_fd){
-	std::string msg;
-	int		bytesRead;
-	char	buffer[BUFFER_SIZE];
-	while (1)
-	{
-		memset(buffer, 0, BUFFER_SIZE);
-		bytesRead = recv(socket_fd, buffer, BUFFER_SIZE, 0);
-		if (bytesRead == 0){
-			std::cout << "Client hang out" << std::endl;
-		}
-		if (bytesRead < 0){
-			//TODO:throw exception;
-			//catch->close the socket
-			std::cout << "Receive error" << std::endl;
-			return (msg);
-		}
-		msg.append(buffer, bytesRead);
-		if (parseHttpHeader(msg))
-			break;
+int	Server::checkReceive(int socket_fd, std::string &msg){
+	std::string header_end = "\r\n\r\n";
+	if (msg.find(header_end) == std::string::npos)
+		return (1);
+	if (msg.find("Transfer-Encoding: chunked") != std::string::npos){
+		if (msg.find("0\r\n\r\n") == std::string::npos)
+			return (0);
 	}
-	return (msg);
+	if (msg.find("Content-Length: ") != std::string::npos){
+		size_t content_length = std::stoll(msg.substr(msg.find("Content-Length: ") + 16));
+		return (this->client_requests[socket_fd].length() == content_length);
+	}
+	return (1);
 }
 
 std::ostream&	operator<<(std::ostream& os, const serverConf& obj){
-	os << "Host name: "  << obj.hostName << std::endl;
-	os << "Port number: " << obj.port <<std::endl;
+	os << "Host name: "  << obj.host << std::endl;
+	for (int i = 0; i < obj.total_port; i++){
+		os << "Port number: " << obj.port_number[i] <<std::endl;
+	}
 	os << "End of Config File";
 	return (os);
 }

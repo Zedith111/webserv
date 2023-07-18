@@ -35,21 +35,31 @@
 // 	std::vector<int>	portNumber;
 // };
 
+// struct requestBody{
+// 	std::string contentLength;
+// 	std::string body;
+// }
+struct requestData{
+	std::string	header;
+	std::string	body;
+};
+
 class Server{
 	private:
-		serverConf			_serverConf;
-		std::vector<int>	socket_fds;
-		fd_set				read_fd, write_fd;
-	
+		serverConf					conf;
+		std::vector<int>			socket_fds;
+		fd_set						read_fd, write_fd;
+		std::map<int, std::string>	client_requests;
+		
+		int				acceptNewConnection(int socket_fd);
+		void			handleConnection(int socket_fd);
+		void			sendResponse(int socket_fd);
+		int				checkReceive(int socket_fd, std::string &msg);
 	public:
 		Server();
 		~Server();
 		int				init();
 		void			run();
-		int				acceptNewConnection(int socket_fd);
-		void			handleConnection(int socket_fd);
-		void			sendResponse(int socket_fd);
-		std::string		receiveRequest(int socket_fd);
 		
 };
 

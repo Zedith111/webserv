@@ -26,9 +26,9 @@ int	main(int argc, char **argv){
 	else{
 		filePath = argv[1];
 	}
-	ConfigParser confParser;
-	if (!confParser.parse(filePath))
-		return (1);
+	// ConfigParser confParser;
+	// if (!confParser.parse(filePath))
+	// 	return (1);
 	Server server;
 	if (!server.init())
 		return (1);

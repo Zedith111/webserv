@@ -30,31 +30,137 @@ int	ConfigParser::parse(std::string &path){
 		return (0);
 	}
 	std::stringstream	buffer;
-	std::string keys[] = {"server", "listen", "server_name"};
-	serverConf *currentConf = NULL;
 
 	buffer << file.rdbuf();
 	this->tokens = this->tokenizer.Tokenize(buffer.str());
-
-	for (size_t i = 0;i < this->tokens.size(); i ++){
-			int indent_level = 0;
-			if (this->tokens[i] == "{")
-				indent_level += 1;
-			else if (this->tokens[i] == "}")
-				indent_level -= 1;
-			else if (this->tokens[i] == "server"){
-				if (currentConf != NULL){
-					this->serverConfs.push_back(*currentConf);
-					currentConf = NULL;
-				}
-			}
-			else{
-			
-			}
-
-		}
-		file.close();
-		// return (1);
+	if (parseToken() == 0)
 		return (0);
+	file.close();
+	// return (1);
+	return (0);
+}
+
+
+int	ConfigParser::parseToken(){
+	int			indent_level = 0;
+	serverConf	*current_conf = NULL;
+	serverConf	new_conf;
+	std::string	keys[] = {"listen", "server_name", "root"};
+	int			key_size = sizeof(keys) / sizeof(keys[0]);
+
+	for (size_t i = 0; i < this->tokens.size(); i++){
+		if (tokens[i] == "{"){
+			indent_level += 1;
+			continue ;
+		}
+		if (tokens[i] == "}"){
+			indent_level -= 1;
+			continue ;
+		}
+		if (this->tokens[i] == "server"){
+			if (current_conf != NULL)
+				this->serverConfs.push_back(*current_conf);
+			current_conf = &new_conf;
+			continue ;
+		}
+		if (this->tokens[i] == "location"){
+			if (parseLocation(i, indent_level, current_conf) == 0)
+				return (0);
+		}
+		else{
+			if (parseServer(i, indent_level, current_conf, keys, key_size) == 0)
+				return (0);
+		}
+	}
+	if (current_conf != NULL){
+		this->serverConfs.push_back(*current_conf);
+	}
+	return (1);
+}
+
+int	ConfigParser::parseServer(size_t &current, int indent_level, serverConf *current_conf, std::string *key, int key_size){
+	//Check present of server block
+	if (current_conf == NULL){
+		std::cout << COLOR_RED << "Error. Server block not found when parsing " << this->tokens[current] << COLOR_RESET << std::endl;
+		return (0);
+	}
+
+	//Check indent level
+	if (indent_level != 1){
+		std::cout << COLOR_RED << "Error. Invalid indent level when parsing " << this->tokens[current] << COLOR_RESET << std::endl;
+		return (0);
+	}
+
+	//Check keyword match
+	int	keyword_found = 0;
+	for (int i = 0; i < key_size; i++){
+		if (this->tokens[current] == key[i]){
+			keyword_found = 1;
+			break ;
+		}
+	}
+	if (keyword_found == 0){
+		std::cout << COLOR_RED << "Error. Invalid keyword when parsing " << this->tokens[current] << COLOR_RESET << std::endl;
+		return (0);
+	}
+
+	if (this->tokens[current] == "listen")
+		return (parseListen(current, current_conf));
+	else if (this->tokens[current] == "server_name")
+		return (parseServerName(current, current_conf));
+	return 1;
+}
+
+int	ConfigParser::parseLocation(size_t &current, int indent_level, serverConf *currentConf){
+	(void) current;
+	(void) indent_level;
+	(void) currentConf;
+	return 1;
+}
+
+int	ConfigParser::parseListen(size_t &current, serverConf *current_conf){
+	current += 1;
+	if (!current_conf->host.empty()){
+		std::cout << COLOR_RED << "Error. Multiple host present" << COLOR_RESET << std::endl;
+		return (0);
+	}
+	std::string::size_type port_pos = this->tokens[current].find(":");
+	if (port_pos == std::string::npos){
+		std::cout << COLOR_RED << "Error. No port number specified: " << this->tokens[current] << COLOR_RESET << std::endl;
+		return (0);
+	}
+	current_conf->host = this->tokens[current].substr(0, port_pos);
+	current_conf->port_number.push_back(this->tokens[current].substr(port_pos + 1));
+	current += 1;
 	
+	while (this->tokens[current] != ";"){
+		//Check if is full address
+		port_pos = this->tokens[current].find(":");
+		if (port_pos == std::string::npos)
+			current_conf->port_number.push_back(this->tokens[current]);
+		else{
+			std::string host = this->tokens[current].substr(0, port_pos);
+			if (host != current_conf->host){
+				std::cout << COLOR_RED << "Error. Host address does not match " << this->tokens[current] << COLOR_RESET << std::endl;
+				return (0);
+			}
+			current_conf->port_number.push_back(this->tokens[current].substr(port_pos + 1));
+		}
+		current +=1;
+	}
+	return (1);
+}
+
+int ConfigParser::parseServerName(size_t &current, serverConf *current_conf){
+	current += 1;
+	std::cout << this->tokens[current] << std::endl;
+	
+	(void) current_conf;
+	// if (!current_conf->host.empty()){
+	// 	std::cout << COLOR_RED << "Error. Multiple host present" << COLOR_RESET << std::endl;
+	// 	return (0);
+	// }
+	// current_conf->host = this->tokens[current];
+	// current += 1;
+	return (1);
 }

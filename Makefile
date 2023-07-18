@@ -10,7 +10,7 @@ OBJS	:=	$(SRCS:%.cpp=$(OBJ_DIR)/%.o)
 
 ifeq ($(DB), 1)
 	CFLAGS += -D DEBUG=1
-	CFLAGS += -pg
+	# CFLAGS += -pg
 endif
 
 all	:	

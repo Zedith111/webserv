@@ -14,6 +14,7 @@
 # define SERVERUTILS_HPP
 
 # include "Webserv.hpp"
+# include "Server.hpp"
 
 int	parseHttpHeader(std::string &msg);
 
