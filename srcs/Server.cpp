@@ -17,6 +17,15 @@ Server::Server(){
 	this->conf.port_number.push_back("8080");
 	this->conf.port_number.push_back("8081");
 	this->conf.total_port = 2;
+
+	locationInfo base;
+	base.root = "/www";
+	base.index = "index.html";
+	base.autoindex = false;
+	base.limit_except.push_back("GET");
+
+
+	this->conf.locations["/"] = base;
 	std::cout << "Current Config" << std::endl;
 	std::cout << this->conf << std::endl;
 }
@@ -29,6 +38,9 @@ Server::~Server(){
 int	Server::init(){
 	struct addrinfo hints;
 	struct addrinfo *res;
+
+	if (DEBUG)
+		std::cout << std::endl << "Initializing server" << std::endl << std::endl;
 
 	//Get Address info
 	memset(&hints, 0, sizeof(hints));
@@ -92,9 +104,9 @@ int	Server::init(){
 
 	if (DEBUG){
 		std::cout << "All socket fd" << std::endl;
-		for (size_t i = 0; i < this->socket_fds.size(); i++){
-			std::cout << this->socket_fds[i] << std::endl;
-	}
+		for (size_t i = 0; i < this->socket_fds.size(); i++)
+			std::cout << this->socket_fds[i] << ", ";
+		std::cout << std::endl;
 	}
 	
 	return (1);
@@ -102,6 +114,8 @@ int	Server::init(){
 
 
 void	Server::run(){
+	if (DEBUG)
+		std::cout << std::endl << "Server is running" << std::endl << std::endl;
 	fd_set				read_ready_fd, write_ready_fd;
 	struct timeval				timeout;
 
@@ -128,9 +142,8 @@ void	Server::run(){
 			for (size_t fd = 0; fd < this->socket_fds.size(); fd++){
 				if (i == this->socket_fds[fd]){
 					int new_socket = acceptNewConnection(this->socket_fds[fd]);
-					if (DEBUG){
+					if (DEBUG)
 						std::cout << new_socket << "new client joined at " << this->socket_fds[fd] << std::endl;
-					}
 					if (new_socket < 0)
 						continue;
 					FD_SET(new_socket, &this->read_fd);
@@ -143,14 +156,14 @@ void	Server::run(){
 				FD_SET(i, &this->write_fd);
         		FD_CLR(i, &this->read_fd);
 				if (DEBUG)
-					std::cout << this->client_requests[i] << std::endl;
+					std::cout << "Client Request " << std::endl << this->client_requests[i] << std::endl;
 			}
 		}
 		//Write
 		for (int i = 0; i < FD_SETSIZE; i++){
 			if (!FD_ISSET(i, &write_ready_fd))
 				continue ;
-			//parse request
+			handleRequest(i);
 			sendResponse(i);
 			FD_CLR(i, &this->write_fd);
 		}
@@ -189,7 +202,7 @@ void	Server::handleConnection(int socket_fd){
 			return ;
 		}
 		this->client_requests[socket_fd].append(buffer, bytes_read);
-		if (parseHttpHeader(this->client_requests[socket_fd]) == 1)
+		if (checkReceive(socket_fd,this->client_requests[socket_fd]) == 1)
 			return ;
 	}
 }
@@ -214,10 +227,39 @@ int	Server::checkReceive(int socket_fd, std::string &msg){
 			return (0);
 	}
 	if (msg.find("Content-Length: ") != std::string::npos){
-		size_t content_length = std::stoll(msg.substr(msg.find("Content-Length: ") + 16));
-		return (this->client_requests[socket_fd].length() == content_length);
+		size_t	value_pos = msg.find("Content-Length: ");
+		size_t	end_pos = msg.find("\r\n", value_pos);
+		std::string content_length = msg.substr(value_pos + 16, end_pos - value_pos - 16);
+		std::stringstream ss(content_length);
+		size_t length;
+		ss >> length;
+		return (this->client_requests[socket_fd].length() == length);
 	}
 	return (1);
+}
+
+void	Server::handleRequest(int socket_fd){
+	requestData request;
+	
+	request.head = this->client_requests[socket_fd].substr(0, this->client_requests[socket_fd].find("\r\n\r\n"));
+	request.body = this->client_requests[socket_fd].substr(this->client_requests[socket_fd].find("\r\n\r\n") + 4);
+	request.contentLength = this->client_requests[socket_fd].length();
+
+	int pos = request.head.find(' ');
+	std::string method = request.head.substr(0, pos);
+	pos ++;
+	std::string path = request.head.substr(pos, request.head.find(' ', pos) - pos);
+	// if (this->conf.locations.find(path) == this->conf.locations.end()){
+	// 	std::cout << "Error. Path not found" << std::endl;
+	// 	return ;
+	// }
+
+	std::cout << "Request Head" << std::endl << request.head << std::endl;
+	std::cout << "Request Body" << std::endl << request.body << std::endl;
+	std::cout << "method: " << method << std::endl;
+	std::cout << "path: " << path << std::endl;
+	std::cout << this->conf.locations[path].root << std::endl;
+	std::cout << this->conf.locations[path].index << std::endl;
 }
 
 std::ostream&	operator<<(std::ostream& os, const serverConf& obj){

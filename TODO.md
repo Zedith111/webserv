@@ -3,8 +3,8 @@
     Get all location block variable and prepare struct
 
 # Handle request
-    Check receive body
-   Seprate request header and body
+    Handle requesy return int
+    write to msp fitst
 
 Try connect to 128 and use curl
 Recevie all request

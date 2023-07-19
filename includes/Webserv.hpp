@@ -36,6 +36,7 @@
 
 struct locationInfo{
 	std::string					root;
+	std::string					index;
 	bool 						autoindex;
 	std::vector<std::string>	limit_except;
 };

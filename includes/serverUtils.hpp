@@ -16,6 +16,5 @@
 # include "Webserv.hpp"
 # include "Server.hpp"
 
-int	parseHttpHeader(std::string &msg);
 
 #endif
