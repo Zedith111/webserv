@@ -16,5 +16,10 @@
 # include "Webserv.hpp"
 # include "Server.hpp"
 
+# include <algorithm>
+
+int				checkMethod(std::string &method, std::vector<std::string> &limit_except);
+std::string		getStatusHeader(int status_code);
+
 
 #endif

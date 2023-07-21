@@ -1,16 +1,18 @@
 # Complete parser
-    understand server name and roor variable
+    understand server name and root variable
     Get all location block variable and prepare struct
-
+    Check root has "/" at the end, if yes, delete it
+    add "./" to the beginning of root
+    location block
+        limit except
 # Handle request
-    Handle requesy return int
-    write to msp fitst
+    Test array of enum and function pointer 
+    change getHeader to send error page
+    Handle /fav.ico
+    Check auto index and index which will be dominant
 
-Try connect to 128 and use curl
-Recevie all request
-Do get request
-unknown method
-not allow method in location block
+Handle address other than localhost
+
 parser->data structure
     map-><path, actual path>
 location->data structure
@@ -28,8 +30,6 @@ multiple server
 Accept should not quit
 if too long not receive header, send error
 
-
-return index.html
 
 sin_port = 0 bind to all port
  server_addr.sin_family = AF_INET;

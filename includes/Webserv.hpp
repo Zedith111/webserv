@@ -34,6 +34,13 @@
 # define COLOR_GREEN   "\033[32m"
 # define COLOR_YELLOW  "\033[33m"
 
+enum METHOD{
+	GET = 0,
+	POST,
+	HEAD,
+	DELETE,
+};
+
 struct locationInfo{
 	std::string					root;
 	std::string					index;
@@ -57,7 +64,6 @@ struct serverConf{
 	std::vector<std::string>	port_number;
 	int			total_port;
 	std::string server_name;
-
 	std::map<std::string, locationInfo> locations;
 };
 

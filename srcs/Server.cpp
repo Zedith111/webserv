@@ -13,13 +13,13 @@
 #include "Server.hpp"
 
 Server::Server(){
-	this->conf.host = "localhost";
+	this->conf.host = "192.168.0.10";
 	this->conf.port_number.push_back("8080");
 	this->conf.port_number.push_back("8081");
 	this->conf.total_port = 2;
 
 	locationInfo base;
-	base.root = "/www";
+	base.root = "./www";
 	base.index = "index.html";
 	base.autoindex = false;
 	base.limit_except.push_back("GET");
@@ -57,6 +57,7 @@ int	Server::init(){
 		);
 		if (status != 0){
 			std::cerr << COLOR_RED << "Error: " << gai_strerror(status) << COLOR_RESET << std::endl;
+			freeaddrinfo(res);
 			return (0);
 		}	
 		std::cout << COLOR_GREEN << "Get address info success for port " << this->conf.port_number[i] << COLOR_RESET << std::endl;
@@ -75,6 +76,7 @@ int	Server::init(){
 		int socket_fd = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
 		if (socket_fd < 0){
 			std::cerr << COLOR_RED << "Error. Unable to create socket for port " << this->conf.port_number[i] << strerror(errno) << std::endl;
+			freeaddrinfo(res);
 			return (0);
 		}
 		std::cout << COLOR_GREEN << "Socket creation sucess for port " << this->conf.port_number[i] << COLOR_RESET << std::endl;
@@ -82,17 +84,20 @@ int	Server::init(){
 		int	reuse = 1;
 		if (setsockopt(socket_fd, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse)) < 0){
 			std::cerr << COLOR_RED << "Error. Set socket option error" << strerror(errno) << std::endl;
+			freeaddrinfo(res);
 			return (0);
 		} 
 
 		//Bind Socket
 		if (bind(socket_fd, res->ai_addr, res->ai_addrlen) < 0){
 			std::cerr << COLOR_RED << "Error. Bind failed. " << strerror(errno) << COLOR_RESET << std::endl;
+			freeaddrinfo(res);
 			return (0);
 		}
 		std::cout << COLOR_GREEN << "Socket binding sucess" << COLOR_RESET << std::endl;
 		if (listen(socket_fd, SOMAXCONN) < 0){
 			std::cerr << COLOR_RED << "Error. Listen failed" << strerror(errno) << std::endl;
+			freeaddrinfo(res);
 			return (0);
 		}
 		this->socket_fds.push_back(socket_fd);
@@ -155,8 +160,6 @@ void	Server::run(){
 				handleConnection(i);
 				FD_SET(i, &this->write_fd);
         		FD_CLR(i, &this->read_fd);
-				if (DEBUG)
-					std::cout << "Client Request " << std::endl << this->client_requests[i] << std::endl;
 			}
 		}
 		//Write
@@ -202,23 +205,73 @@ void	Server::handleConnection(int socket_fd){
 			return ;
 		}
 		this->client_requests[socket_fd].append(buffer, bytes_read);
-		if (checkReceive(socket_fd,this->client_requests[socket_fd]) == 1)
+		if (checkReceive(this->client_requests[socket_fd]) == 1)
 			return ;
 	}
 }
 
+void	Server::handleRequest(int socket_fd){
+	requestData request;
+	
+	request.header = this->client_requests[socket_fd].substr(0, this->client_requests[socket_fd].find("\r\n\r\n"));
+	request.body = this->client_requests[socket_fd].substr(this->client_requests[socket_fd].find("\r\n\r\n") + 4);
+	request.contentLength = this->client_requests[socket_fd].length();
+
+	int pos = request.header.find(' ');
+	std::string method = request.header.substr(0, pos);
+	pos ++;
+	std::string path = request.header.substr(pos, request.header.find(' ', pos) - pos);
+	if (DEBUG){
+		std::cout << "Request Header: " << std::endl << request.header << std::endl;
+		std::cout << "Request Body: " << std::endl << request.body << std::endl;
+		std::cout << "Method: " << method << std::endl;
+		std::cout << "path: " << path << std::endl;
+		std::cout << this->conf.locations[path].root << std::endl;
+		std::cout << this->conf.locations[path].index << std::endl;
+	}
+	//Check if request can be handled
+	if (this->conf.locations.find(path) == this->conf.locations.end()){
+		std::cout << COLOR_RED <<  "Error. Path: " << path <<  " not found"  << COLOR_RESET << std::endl;
+		this->client_responses[socket_fd] = getStatusHeader(404);
+		return ;
+	}
+	int request_method = checkMethod(method, this->conf.locations[path].limit_except);
+	if (request_method == -1){
+		std::cout << COLOR_RED << "Error. Method " << method << " is not allowed"  << COLOR_RESET << std::endl;
+		this->client_responses[socket_fd] = getStatusHeader(405);
+		return ;
+	}
+
+	std::ifstream file(this->conf.locations[path].root + "/" + this->conf.locations[path].index);
+	if (!file.is_open()){
+		std::cout << COLOR_RED << "Error. File not found" << COLOR_RESET << std::endl;
+		this->client_responses[socket_fd] = getStatusHeader(404);
+	}
+	
+	// typedef void (Server::*func)(std::ifstream &file);
+
+
+	std::stringstream buffer;
+	buffer << file.rdbuf();
+	std::string content = buffer.str();
+	std::string res = "HTTP/1.1 200 OK\r\n"
+							"Content-Type: text/html\r\n"
+							"Content-Length: " + std::to_string(content.length()) + "\r\n"
+							"\r\n" + content;
+	this->client_responses[socket_fd] = res;
+	// METHOD method_enum = static_cast<METHOD>(request_method);
+	//get body
+	//add content length
+}
+
 void	Server::sendResponse(int socket_fd){
-	std::string response = "HTTP/1.1 200 OK\r\n"
-                            "Content-Type: text/html\r\n"
-                            "Content-Length: 13\r\n"
-                            "\r\n"
-                            "Hello, client!";
-	send(socket_fd, response.c_str(), response.length(), 0); 
+	send(socket_fd, this->client_responses[socket_fd].c_str(), this->client_responses[socket_fd].length(), 0);
 	this->client_requests.erase(socket_fd);
+	this->client_responses.erase(socket_fd);
 	close(socket_fd);
 }
 
-int	Server::checkReceive(int socket_fd, std::string &msg){
+int	Server::checkReceive(std::string &msg){
 	std::string header_end = "\r\n\r\n";
 	if (msg.find(header_end) == std::string::npos)
 		return (1);
@@ -233,33 +286,28 @@ int	Server::checkReceive(int socket_fd, std::string &msg){
 		std::stringstream ss(content_length);
 		size_t length;
 		ss >> length;
-		return (this->client_requests[socket_fd].length() == length);
+		std::string body = msg.substr(msg.find("\r\n\r\n") + 4);
+		return (body.length() == length);
 	}
 	return (1);
 }
 
-void	Server::handleRequest(int socket_fd){
-	requestData request;
-	
-	request.head = this->client_requests[socket_fd].substr(0, this->client_requests[socket_fd].find("\r\n\r\n"));
-	request.body = this->client_requests[socket_fd].substr(this->client_requests[socket_fd].find("\r\n\r\n") + 4);
-	request.contentLength = this->client_requests[socket_fd].length();
+/**
+ * @brief Return
+ * 
+ * @param file 
+ * @return std::string 
+ */
+std::string	Server::handleGet(std::ifstream &file){
+	std::stringstream buffer;
+	buffer << file.rdbuf();
+	std::string content = buffer.str();
 
-	int pos = request.head.find(' ');
-	std::string method = request.head.substr(0, pos);
-	pos ++;
-	std::string path = request.head.substr(pos, request.head.find(' ', pos) - pos);
-	// if (this->conf.locations.find(path) == this->conf.locations.end()){
-	// 	std::cout << "Error. Path not found" << std::endl;
-	// 	return ;
-	// }
-
-	std::cout << "Request Head" << std::endl << request.head << std::endl;
-	std::cout << "Request Body" << std::endl << request.body << std::endl;
-	std::cout << "method: " << method << std::endl;
-	std::cout << "path: " << path << std::endl;
-	std::cout << this->conf.locations[path].root << std::endl;
-	std::cout << this->conf.locations[path].index << std::endl;
+	std::string res = "HTTP/1.1 200 OK\r\n"
+							"Content-Type: text/html\r\n"
+							"Content-Length: " + std::to_string(content.length()) + "\r\n"
+							"\r\n" + content;
+	return (res);
 }
 
 std::ostream&	operator<<(std::ostream& os, const serverConf& obj){

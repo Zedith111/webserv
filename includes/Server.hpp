@@ -35,15 +35,8 @@
 // 	std::vector<int>	portNumber;
 // };
 
-enum METHOD{
-	GET,
-	POST,
-	HEAD,
-	DELETE,
-};
-
 struct requestData{
-	std::string head;
+	std::string header;
 	METHOD method;
 	std::string path;
 	std::string body;
@@ -56,13 +49,15 @@ class Server{
 		std::vector<int>			socket_fds;
 		fd_set						read_fd, write_fd;
 		std::map<int, std::string>	client_requests;
-		// std::map<int, std::string>	client_responses;
+		std::map<int, std::string>	client_responses;
 		
 		int				acceptNewConnection(int socket_fd);
 		void			handleConnection(int socket_fd);
-		void			sendResponse(int socket_fd);
-		int				checkReceive(int socket_fd, std::string &msg);
 		void			handleRequest(int socket_fd);
+		void			sendResponse(int socket_fd);
+		int				checkReceive(std::string &msg);
+
+		std::string		handleGet(std::ifstream &file);
 		
 	public:
 		Server();
