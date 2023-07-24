@@ -58,6 +58,9 @@ class Server{
 		int				checkReceive(std::string &msg);
 
 		std::string		handleGet(std::ifstream &file);
+		std::string		handlePost(std::ifstream &file);
+		std::string		handleHead(std::ifstream &file);
+		std::string		handleDelete(std::ifstream &file);
 		
 	public:
 		Server();

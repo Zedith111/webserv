@@ -13,7 +13,7 @@
 #include "Server.hpp"
 
 Server::Server(){
-	this->conf.host = "192.168.0.10";
+	this->conf.host = "127.0.0.1";
 	this->conf.port_number.push_back("8080");
 	this->conf.port_number.push_back("8081");
 	this->conf.total_port = 2;
@@ -248,18 +248,11 @@ void	Server::handleRequest(int socket_fd){
 		this->client_responses[socket_fd] = getStatusHeader(404);
 	}
 	
-	// typedef void (Server::*func)(std::ifstream &file);
-
-
-	std::stringstream buffer;
-	buffer << file.rdbuf();
-	std::string content = buffer.str();
-	std::string res = "HTTP/1.1 200 OK\r\n"
-							"Content-Type: text/html\r\n"
-							"Content-Length: " + std::to_string(content.length()) + "\r\n"
-							"\r\n" + content;
-	this->client_responses[socket_fd] = res;
-	// METHOD method_enum = static_cast<METHOD>(request_method);
+	typedef std::string (Server::*func)(std::ifstream &file);
+	METHOD method_enum = static_cast<METHOD>(request_method);
+	func methods[METHOD_COUNT] = {&Server::handleGet, &Server::handlePost, &Server::handleHead, &Server::handleDelete};
+	this->client_responses[socket_fd] = (this->*methods[method_enum])(file);
+	// std::string body = (this->*methods[method_enum])(file);
 	//get body
 	//add content length
 }
@@ -293,12 +286,45 @@ int	Server::checkReceive(std::string &msg){
 }
 
 /**
- * @brief Return
- * 
- * @param file 
- * @return std::string 
+ * @brief Read the file path of a target location and return the body of response
  */
 std::string	Server::handleGet(std::ifstream &file){
+	std::stringstream buffer;
+	buffer << file.rdbuf();
+	std::string content = buffer.str();
+
+	std::string res = "HTTP/1.1 200 OK\r\n"
+							"Content-Type: text/html\r\n"
+							"Content-Length: " + std::to_string(content.length()) + "\r\n"
+							"\r\n" + content;
+	return (res);
+}
+
+std::string	Server::handlePost(std::ifstream &file){
+	std::stringstream buffer;
+	buffer << file.rdbuf();
+	std::string content = buffer.str();
+
+	std::string res = "HTTP/1.1 200 OK\r\n"
+							"Content-Type: text/html\r\n"
+							"Content-Length: " + std::to_string(content.length()) + "\r\n"
+							"\r\n" + content;
+	return (res);
+}
+
+std::string	Server::handleHead(std::ifstream &file){
+	std::stringstream buffer;
+	buffer << file.rdbuf();
+	std::string content = buffer.str();
+
+	std::string res = "HTTP/1.1 200 OK\r\n"
+							"Content-Type: text/html\r\n"
+							"Content-Length: " + std::to_string(content.length()) + "\r\n"
+							"\r\n" + content;
+	return (res);
+}
+
+std::string	Server::handleDelete(std::ifstream &file){
 	std::stringstream buffer;
 	buffer << file.rdbuf();
 	std::string content = buffer.str();

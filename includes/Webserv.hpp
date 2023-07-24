@@ -39,6 +39,7 @@ enum METHOD{
 	POST,
 	HEAD,
 	DELETE,
+	METHOD_COUNT,
 };
 
 struct locationInfo{
@@ -64,6 +65,8 @@ struct serverConf{
 	std::vector<std::string>	port_number;
 	int			total_port;
 	std::string server_name;
+	std::string root;
+	// std::vector<std::string>	error_pages;
 	std::map<std::string, locationInfo> locations;
 };
 

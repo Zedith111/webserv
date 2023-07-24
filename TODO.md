@@ -1,18 +1,21 @@
+use valgrind to check memory leak without deleting serverconf
 # Complete parser
+    
+    swap position of server name and listen
     understand server name and root variable
     Get all location block variable and prepare struct
     Check root has "/" at the end, if yes, delete it
-    add "./" to the beginning of root
+    add "./" to the beginning of root/aboslute or relative path
     location block
         limit except
 # Handle request
-    Test array of enum and function pointer 
     change getHeader to send error page
     Handle /fav.ico
     Check auto index and index which will be dominant
+    Change handle method to not member function
 
+Check leak
 Handle address other than localhost
-
 parser->data structure
     map-><path, actual path>
 location->data structure
@@ -32,12 +35,12 @@ if too long not receive header, send error
 
 
 sin_port = 0 bind to all port
- server_addr.sin_family = AF_INET;
+server_addr.sin_family = AF_INET;
     server_addr.sin_port = 0;  // Bind to all ports
     server_addr.sin_addr.s_addr = INADDR_ANY;  // Bind to all available interfaces
 
 # Information
-host cat etc/hostss
+host cat etc/hosts
 
 # Future Improvement
 Add ipv6 support

@@ -19,7 +19,13 @@ ConfigParser::ConfigParser(){
 }
 
 ConfigParser::~ConfigParser(){
-
+	// for(size_t i = 0; i < this->serverConfs.size(); i++){
+	// 	delete (&this->serverConfs[i]);
+	// }
+	while (!serverConfs.empty()) {
+    	delete serverConfs.back(); // Delete the last dynamically allocated struct
+   		serverConfs.pop_back();    // Remove the pointer from the vector
+	}
 }
 
 int	ConfigParser::parse(std::string &path){
@@ -36,17 +42,13 @@ int	ConfigParser::parse(std::string &path){
 	if (parseToken() == 0)
 		return (0);
 	file.close();
-	// return (1);
-	return (0);
+	return (1);
 }
 
 
 int	ConfigParser::parseToken(){
 	int			indent_level = 0;
 	serverConf	*current_conf = NULL;
-	serverConf	new_conf;
-	std::string	keys[] = {"listen", "server_name", "root"};
-	int			key_size = sizeof(keys) / sizeof(keys[0]);
 
 	for (size_t i = 0; i < this->tokens.size(); i++){
 		if (tokens[i] == "{"){
@@ -58,9 +60,11 @@ int	ConfigParser::parseToken(){
 			continue ;
 		}
 		if (this->tokens[i] == "server"){
-			if (current_conf != NULL)
-				this->serverConfs.push_back(*current_conf);
-			current_conf = &new_conf;
+			if (current_conf != NULL){
+				this->serverConfs.push_back(current_conf);
+			}
+			else
+				current_conf = new serverConf;
 			continue ;
 		}
 		if (this->tokens[i] == "location"){
@@ -68,17 +72,22 @@ int	ConfigParser::parseToken(){
 				return (0);
 		}
 		else{
-			if (parseServer(i, indent_level, current_conf, keys, key_size) == 0)
+			if (parseServer(i, indent_level, current_conf) == 0)
 				return (0);
 		}
 	}
 	if (current_conf != NULL){
-		this->serverConfs.push_back(*current_conf);
+		this->serverConfs.push_back(current_conf);
 	}
 	return (1);
 }
 
-int	ConfigParser::parseServer(size_t &current, int indent_level, serverConf *current_conf, std::string *key, int key_size){
+int	ConfigParser::parseServer(size_t &current, int indent_level, serverConf *current_conf){
+	std::string	keys[] = {"listen", "server_name", "root"};
+	const int			key_size = sizeof(keys) / sizeof(keys[0]);
+	typedef int (ConfigParser::*func)(size_t &, serverConf *);
+	func	key_funcs[key_size] = {&ConfigParser::parseListen, &ConfigParser::parseServerName, &ConfigParser::parseRoot};
+
 	//Check present of server block
 	if (current_conf == NULL){
 		std::cout << COLOR_RED << "Error. Server block not found when parsing " << this->tokens[current] << COLOR_RESET << std::endl;
@@ -92,22 +101,21 @@ int	ConfigParser::parseServer(size_t &current, int indent_level, serverConf *cur
 	}
 
 	//Check keyword match
-	int	keyword_found = 0;
-	for (int i = 0; i < key_size; i++){
-		if (this->tokens[current] == key[i]){
-			keyword_found = 1;
+	int keyword_found = -1;
+
+	for (int i=0; i < key_size; i++){
+		if (this->tokens[current] == keys[i]){
+			keyword_found = i;
 			break ;
 		}
 	}
-	if (keyword_found == 0){
+	if (keyword_found == -1){
 		std::cout << COLOR_RED << "Error. Invalid keyword when parsing " << this->tokens[current] << COLOR_RESET << std::endl;
 		return (0);
 	}
 
-	if (this->tokens[current] == "listen")
-		return (parseListen(current, current_conf));
-	else if (this->tokens[current] == "server_name")
-		return (parseServerName(current, current_conf));
+	return (this->*key_funcs[keyword_found])(current, current_conf);
+	
 	return 1;
 }
 
@@ -153,14 +161,35 @@ int	ConfigParser::parseListen(size_t &current, serverConf *current_conf){
 
 int ConfigParser::parseServerName(size_t &current, serverConf *current_conf){
 	current += 1;
-	std::cout << this->tokens[current] << std::endl;
-	
-	(void) current_conf;
-	// if (!current_conf->host.empty()){
-	// 	std::cout << COLOR_RED << "Error. Multiple host present" << COLOR_RESET << std::endl;
-	// 	return (0);
-	// }
-	// current_conf->host = this->tokens[current];
-	// current += 1;
+	current_conf->server_name = this->tokens[current];
+	current += 1;
+	if (this->tokens[current] != ";"){
+		std::cout << COLOR_RED << "Error: missing ending character ; after " << this->tokens[current - 1] << COLOR_RESET << std::endl;
+		return (0);
+	}
 	return (1);
+}
+
+int ConfigParser::parseRoot(size_t &current, serverConf *current_conf){
+	current += 1;
+	current_conf->root = this->tokens[current];
+	current += 1;
+	if (this->tokens[current] != ";"){
+		std::cout << COLOR_RED << "Error: missing ending character ; after " << this->tokens[current - 1] << COLOR_RESET << std::endl;
+		return (0);
+	}
+	return (1);
+}
+
+void	ConfigParser::printConf(){
+	for (size_t i = 0; i < this->serverConfs.size(); i++){
+		std::cout << "Host: " << this->serverConfs[i]->host << std::endl;
+		std::cout << "Port: " ;
+		for (size_t j=0; j < this->serverConfs[i]->port_number.size(); j++){
+			std::cout << this->serverConfs[i]->port_number[j] << ", ";
+		}
+		std::cout << std::endl;
+		std::cout << "Server Name: " << this->serverConfs[i]->server_name << std::endl;
+		std::cout << "Root: " << this->serverConfs[i]->root << std::endl;
+	}
 }

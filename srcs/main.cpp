@@ -13,6 +13,7 @@
 #include "Webserv.hpp"
 #include "Server.hpp"
 #include "ConfigParser.hpp"
+#include "utils.hpp"
 
 int	main(int argc, char **argv){
 
@@ -26,13 +27,14 @@ int	main(int argc, char **argv){
 	else{
 		filePath = argv[1];
 	}
-	// ConfigParser confParser;
-	// if (!confParser.parse(filePath))
-	// 	return (1);
-	Server server;
-	if (!server.init())
+	ConfigParser confParser;
+	if (!confParser.parse(filePath))
 		return (1);
-	server.run();
+	confParser.printConf();
+	// Server server;
+	// if (!server.init())
+	// 	return (1);
+	// server.run();
 
 	// int	server_fd = socket(AF_INET, SOCK_STREAM, 0);
 	// (void) argc;
