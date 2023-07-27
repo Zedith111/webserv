@@ -50,17 +50,21 @@ class Server{
 		fd_set						read_fd, write_fd;
 		std::map<int, std::string>	client_requests;
 		std::map<int, std::string>	client_responses;
+		std::map<int, std::string>	reason_phrases;
+		std::ofstream				database;
 		
 		int				acceptNewConnection(int socket_fd);
 		void			handleConnection(int socket_fd);
-		void			handleRequest(int socket_fd);
-		void			sendResponse(int socket_fd);
+		int				handleRequest(int socket_fd);
+		void			sendResponse(int socket_fd, int status_code);
 		int				checkReceive(std::string &msg);
+		std::string		handleError(int status_code);
 
-		std::string		handleGet(std::ifstream &file);
-		std::string		handlePost(std::ifstream &file);
-		std::string		handleHead(std::ifstream &file);
-		std::string		handleDelete(std::ifstream &file);
+		std::string		handleGet(requestData &request, std::ifstream &file);
+		std::string		handlePost(requestData &request, std::ifstream &file);
+		std::string		handlePut(requestData &request, std::ifstream &file);
+		std::string		handleHead(requestData &request, std::ifstream &file);
+		std::string		handleDelete(requestData &request, std::ifstream &file);
 		
 	public:
 		Server();

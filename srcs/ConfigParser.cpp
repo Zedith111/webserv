@@ -23,6 +23,7 @@ ConfigParser::~ConfigParser(){
 	// 	delete (&this->serverConfs[i]);
 	// }
 	while (!serverConfs.empty()) {
+		std::cout << "deleting" << std::endl;
     	delete serverConfs.back(); // Delete the last dynamically allocated struct
    		serverConfs.pop_back();    // Remove the pointer from the vector
 	}
@@ -79,6 +80,10 @@ int	ConfigParser::parseToken(){
 	if (current_conf != NULL){
 		this->serverConfs.push_back(current_conf);
 	}
+	if (indent_level != 0){
+		std::cout << COLOR_RED << "Error. Block not enclosed properly" << COLOR_RESET << std::endl;
+		return (0);
+	}
 	return (1);
 }
 
@@ -103,7 +108,7 @@ int	ConfigParser::parseServer(size_t &current, int indent_level, serverConf *cur
 	//Check keyword match
 	int keyword_found = -1;
 
-	for (int i=0; i < key_size; i++){
+	for (int i = 0; i < key_size; i ++){
 		if (this->tokens[current] == keys[i]){
 			keyword_found = i;
 			break ;
@@ -119,10 +124,53 @@ int	ConfigParser::parseServer(size_t &current, int indent_level, serverConf *cur
 	return 1;
 }
 
+//parse until },
 int	ConfigParser::parseLocation(size_t &current, int indent_level, serverConf *currentConf){
-	(void) current;
-	(void) indent_level;
-	(void) currentConf;
+	//Check present of server block
+	if (currentConf == NULL){
+		std::cout << COLOR_RED << "Error. Server block not found when parsing " << this->tokens[current] << COLOR_RESET << std::endl;
+		return (0);
+	}
+
+	//Check current indent level
+	if (indent_level != 1){
+		std::cout << COLOR_RED << "Error. Invalid indent level when parsing " << this->tokens[current] << COLOR_RESET << std::endl;
+		return (0);
+	}
+
+	locationInfo *new_location = new locationInfo;
+	current += 1;
+	std::string route = this->tokens[current];
+
+	current += 1;
+	if (this->tokens[current] != "{"){
+		std::cout << COLOR_RED << "Error. Missing { after location path" << COLOR_RESET << std::endl;
+		return (0);
+	}
+	current += 1;
+	std::string keys[] = {"autoindex", "root", "index", "limit_except"};
+	const int key_size = sizeof(keys) / sizeof(keys[0]);
+	typedef int (ConfigParser::*func)(size_t &, locationInfo *);
+	func	key_funcs[key_size] = {&ConfigParser::parseAutoindex, &ConfigParser::parseLocationRoot, &ConfigParser::parseLocationIndex, &ConfigParser::parseLimitExcept};
+	
+	while (this->tokens[current] != "}"){
+		int keyword_found = -1;
+		for (int i = 0; i < key_size; i ++){
+			if (this->tokens[current] == keys[i]){
+				keyword_found = i;
+				break ;
+			}
+		}
+		if (keyword_found == -1){
+			std::cout << COLOR_RED << "Error. Invalid keyword when parsing " << this->tokens[current] << COLOR_RESET << std::endl;
+			return (0);
+		}
+		if ((this->*key_funcs[keyword_found])(current, new_location) == 0)
+			return (0);
+		current += 1;
+	}
+	// std::cout << "Current: " << this->tokens[current] << std::endl;
+	currentConf->locations[route] = *new_location;
 	return 1;
 }
 
@@ -181,6 +229,65 @@ int ConfigParser::parseRoot(size_t &current, serverConf *current_conf){
 	return (1);
 }
 
+int	ConfigParser::parseAutoindex(size_t &current, locationInfo *current_loc){
+	current += 1;
+	if (this->tokens[current] == "on")
+		current_loc->autoindex = true;
+	else if (this->tokens[current] == "off")
+		current_loc->autoindex = false;
+	else{
+		std::cout << COLOR_RED << "Error. Invalid autoindex value: " << this->tokens[current] << COLOR_RESET << std::endl;
+		return (0);
+	}
+	current += 1;
+	if (this->tokens[current] != ";"){
+		std::cout << COLOR_RED << "Error: missing ending character ; after " << this->tokens[current - 1] << COLOR_RESET << std::endl;
+		return (0);
+	}
+	return (1); 
+
+}
+
+int ConfigParser::parseLocationRoot(size_t &current, locationInfo *current_loc){
+	current += 1;
+	current_loc->root = this->tokens[current];
+	current += 1;
+	if (this->tokens[current] != ";"){
+		std::cout << COLOR_RED << "Error: missing ending character ; after " << this->tokens[current - 1] << COLOR_RESET << std::endl;
+		return (0);
+	}
+	return (1); 
+}
+
+int	ConfigParser::parseLocationIndex(size_t &current, locationInfo *current_loc){
+	current += 1;
+	current_loc->index = this->tokens[current];
+	current += 1;
+	if (this->tokens[current] != ";"){
+		std::cout << COLOR_RED << "Error: missing ending character ; after " << this->tokens[current - 1] << COLOR_RESET << std::endl;
+		return (0);
+	}
+	return (1); 
+}
+
+int	ConfigParser::parseLimitExcept(size_t &current, locationInfo *current_loc){
+	current += 1;
+	while (this->tokens[current] != ";")
+	{
+		if (this->tokens[current] == "GET" || this->tokens[current] == "POST" || this->tokens[current] == "PUT" ||
+		this->tokens[current] == "HEAD" || this->tokens[current] == "DELETE"){
+			current_loc->limit_except.push_back(this->tokens[current]);
+		}
+		else
+		{
+			std::cout << COLOR_RED << "Error. Invalid limit_except value: " << this->tokens[current] << COLOR_RESET << std::endl;
+			return (0);
+		}
+		current += 1;
+	}
+	return (1); 
+}
+
 void	ConfigParser::printConf(){
 	for (size_t i = 0; i < this->serverConfs.size(); i++){
 		std::cout << "Host: " << this->serverConfs[i]->host << std::endl;
@@ -191,5 +298,17 @@ void	ConfigParser::printConf(){
 		std::cout << std::endl;
 		std::cout << "Server Name: " << this->serverConfs[i]->server_name << std::endl;
 		std::cout << "Root: " << this->serverConfs[i]->root << std::endl;
+		std::map<std::string, locationInfo>::iterator iter;
+		for(iter=this->serverConfs[i]->locations.begin(); iter!=this->serverConfs[i]->locations.end(); ++iter){
+			std::cout << "Route: " << iter->first << std::endl;
+			std::cout << "\tRoot: " << iter->second.root << std::endl;
+			std::cout << "\tIndex: " << iter->second.index << std::endl;
+			std::cout << "\tAutoindex: " << iter->second.autoindex << std::endl;
+			std::cout << "\tLimit Except: ";
+			for (size_t j=0; j < iter->second.limit_except.size(); j++){
+				std::cout << iter->second.limit_except[j] << ", ";
+			}
+			std::cout << std::endl;
+		}
 	}
 }

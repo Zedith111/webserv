@@ -32,9 +32,16 @@ class ConfigParser{
 		int	parseLocation(size_t &current, int indent_level, serverConf *current_conf);
 		int	addPort(std::string &port);
 
+		//Server Block Parsing Functions
 		int	parseListen(size_t &current, serverConf *current_conf);
 		int	parseServerName(size_t &current, serverConf *current_conf);
 		int	parseRoot(size_t &current, serverConf *current_conf);
+
+		//Location Block Parsing Functions
+		int	parseAutoindex(size_t &current, locationInfo *current_loc);
+		int parseLocationRoot(size_t &current, locationInfo *current_loc);
+		int	parseLocationIndex(size_t &current, locationInfo *current_loc);
+		int	parseLimitExcept(size_t &current, locationInfo *current_loc);
 
 	public:
 		ConfigParser();

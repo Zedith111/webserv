@@ -6,7 +6,7 @@
 /*   By: zah <zah@student.42kl.edu.my>              +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2023/07/24 12:20:00 by zah               #+#    #+#             */
-/*   Updated: 2023/07/24 12:34:52 by zah              ###   ########.fr       */
+/*   Updated: 2023/07/27 20:38:26 by zah              ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -16,5 +16,6 @@
 # include "Webserv.hpp"
 
 void printConfig(serverConf &conf);
+int	checkIsDirectory(std::string &path);
 
 #endif

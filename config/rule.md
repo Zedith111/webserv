@@ -15,3 +15,7 @@ server_name:
 autoindex
 	only available in location block
 
+
+location
+	path need to start with "/"
+

@@ -6,7 +6,7 @@
 /*   By: zah <zah@student.42kl.edu.my>              +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2023/07/24 13:14:45 by zah               #+#    #+#             */
-/*   Updated: 2023/07/24 14:58:48 by zah              ###   ########.fr       */
+/*   Updated: 2023/07/27 20:41:46 by zah              ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -22,4 +22,25 @@ void printConfig(serverConf &conf){
 	std::cout << "Server Name: " << conf.server_name << std::endl;
 	std::cout << "Root: " << conf.root << std::endl;
 
+}
+
+/**
+ * @brief Check if the path is a directory
+ * Return 1 if is directory, 0 if is a file, -1 if error
+ */
+int	checkIsDirectory(std::string &path){
+	struct stat file_info;
+	int res = stat(path.c_str(), &file_info);
+	if (res < 0){
+		"." + path;
+		res = stat(path.c_str(), &file_info);
+		if (res < 0){
+			return (-1);
+		}
+	}
+	if (S_ISDIR(file_info.st_mode)) {
+		return (1);
+	} else {
+		return (0);
+	}
 }

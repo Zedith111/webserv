@@ -27,74 +27,18 @@ int	main(int argc, char **argv){
 	else{
 		filePath = argv[1];
 	}
-	ConfigParser confParser;
-	if (!confParser.parse(filePath))
+	// ConfigParser confParser;
+	// if (!confParser.parse(filePath))
+	// 	return (1);
+	// confParser.printConf();
+
+	//Check contain error page, if not obtain from default
+	//Check error page and compulsory cgi(autoindex) can be can be used
+
+	Server server;
+	if (!server.init())
 		return (1);
-	confParser.printConf();
-	// Server server;
-	// if (!server.init())
-	// 	return (1);
-	// server.run();
-
-	// int	server_fd = socket(AF_INET, SOCK_STREAM, 0);
-	// (void) argc;
-	// (void) argv;
-	// //Will pass through configuration file
-	// struct sockaddr_in	address;
-	// const int			port = 8081;
-	// const int			backlog = 5;
-	// int					addrlen = sizeof(address);
-
-
-	// if (server_fd < 0){
-	// 	std::cerr << "Error. Unable to create socket" << strerror(errno) << std::endl;
-	// 	return (1);
-	// }
-	// memset((char *)&address, 0, sizeof(address));
-	// address.sin_family = AF_INET;
-	// address.sin_addr.s_addr = htonl(INADDR_ANY);
-	// address.sin_port = htons(port);
-
-	// if (bind(server_fd, (struct sockaddr *)&address, sizeof(address)) < 0){
-	// 	std::cerr << "Error. Bind failed. " << strerror(errno) << std::endl;
-	// 	return (1);
-	// }
-
-	// if (listen(server_fd, backlog) < 0){
-	// 	std::cerr << "Error. Listen failed. " << strerror(errno) << std::endl;
-	// 	return (1);
-	// }
-	// while(1){
-	// 	std::cout << "Waiting for connection" << std::endl;
-	// 	//accpet second parmater for optional client only 
-	// 	int new_socket = accept(server_fd,(struct sockaddr *)&address,
-	// 	 (socklen_t *)&addrlen);
-	// 	if (new_socket < 0){
-	// 		std::cerr << "Error. Accept failed. " << strerror(errno) << std::endl;
-	// 		return (1);
-	// 	}
-	// 	char buffer[20000] = {0};
-	// 	int valread = read(new_socket, buffer, 1024);
-	// 	std::cout << "From client" << std::endl;
-	// 	std::cout << buffer << std::endl;
-	// 	if (valread < 0){
-	// 		std::cout << "Error. Read failed. " << strerror(errno) << std::endl;
-	// 		return (1);
-	// 	}
-	// 	//Header
-	// 	std::string server_msg = "HTTP/1.1 200 OK\n";
-	// 	server_msg + "Content-Type: text/plain\n";
-	// 	server_msg + "content-Length: 20\n";
-
-	// 	//Body
-	// 	server_msg + "\nHello World!\n";
-		
-	// 	write(new_socket, server_msg.c_str(), server_msg.size());
-	// 	std::cout << "Server message sent" << std::endl;
-	// 	close(new_socket);
-	// }
-	
-
+	server.run();
 }
 
 

@@ -13,25 +13,45 @@
 #include "Server.hpp"
 
 Server::Server(){
+	//Configure port
 	this->conf.host = "127.0.0.1";
 	this->conf.port_number.push_back("8080");
 	this->conf.port_number.push_back("8081");
 	this->conf.total_port = 2;
 
+	//Add html
 	locationInfo base;
 	base.root = "./www";
 	base.index = "index.html";
 	base.autoindex = false;
 	base.limit_except.push_back("GET");
-
-
 	this->conf.locations["/"] = base;
+	
+
+	locationInfo test;
+	test.root = "./www";
+	test.index = "post.html";
+	test.autoindex = false;
+	test.limit_except.push_back("GET");
+	test.limit_except.push_back("POST");
+	this->conf.locations["/post"] = test;
+
+	//Add error page
+	this->conf.error_pages[404] = "./www/error/404.html";
+	this->conf.error_pages[405] = "./www/error/405.html";
+
+	//Add reason phrase
+	this->reason_phrases[200] = "OK";
+	this->reason_phrases[404] = "Not Found";
+	this->reason_phrases[405] = "Method Not Allowed";
+
+
 	std::cout << "Current Config" << std::endl;
 	std::cout << this->conf << std::endl;
 }
 
 Server::~Server(){
-	
+	this->database.close();
 }
 
 
@@ -41,6 +61,13 @@ int	Server::init(){
 
 	if (DEBUG)
 		std::cout << std::endl << "Initializing server" << std::endl << std::endl;
+	
+	//Open or Create database
+	this->database.open("database.txt", std::ios::out);
+	if (!this->database.is_open()){
+		std::cerr << COLOR_RED << "Error. Unable to open database" << COLOR_RESET << std::endl;
+		return (0);
+	}
 
 	//Get Address info
 	memset(&hints, 0, sizeof(hints));
@@ -166,8 +193,8 @@ void	Server::run(){
 		for (int i = 0; i < FD_SETSIZE; i++){
 			if (!FD_ISSET(i, &write_ready_fd))
 				continue ;
-			handleRequest(i);
-			sendResponse(i);
+			int res = handleRequest(i);
+			sendResponse(i, res);
 			FD_CLR(i, &this->write_fd);
 		}
 	}
@@ -210,7 +237,11 @@ void	Server::handleConnection(int socket_fd){
 	}
 }
 
-void	Server::handleRequest(int socket_fd){
+/**
+ * @brief Evaluate the request header and body.
+ * Write the response body to client_responses 
+ */
+int		Server::handleRequest(int socket_fd){
 	requestData request;
 	
 	request.header = this->client_requests[socket_fd].substr(0, this->client_requests[socket_fd].find("\r\n\r\n"));
@@ -232,33 +263,51 @@ void	Server::handleRequest(int socket_fd){
 	//Check if request can be handled
 	if (this->conf.locations.find(path) == this->conf.locations.end()){
 		std::cout << COLOR_RED <<  "Error. Path: " << path <<  " not found"  << COLOR_RESET << std::endl;
-		this->client_responses[socket_fd] = getStatusHeader(404);
-		return ;
+		this->client_responses[socket_fd] = this->handleError(404);
+		return (404);
 	}
 	int request_method = checkMethod(method, this->conf.locations[path].limit_except);
 	if (request_method == -1){
 		std::cout << COLOR_RED << "Error. Method " << method << " is not allowed"  << COLOR_RESET << std::endl;
-		this->client_responses[socket_fd] = getStatusHeader(405);
-		return ;
+		this->client_responses[socket_fd] = this->handleError(405);
+		return (405);
 	}
 
+	//TODO: handle when no index but have autoindex on
 	std::ifstream file(this->conf.locations[path].root + "/" + this->conf.locations[path].index);
 	if (!file.is_open()){
 		std::cout << COLOR_RED << "Error. File not found" << COLOR_RESET << std::endl;
-		this->client_responses[socket_fd] = getStatusHeader(404);
+		this->client_responses[socket_fd] = this->handleError(404);
 	}
 	
-	typedef std::string (Server::*func)(std::ifstream &file);
+	typedef std::string (Server::*func)(requestData &,std::ifstream &);
 	METHOD method_enum = static_cast<METHOD>(request_method);
-	func methods[METHOD_COUNT] = {&Server::handleGet, &Server::handlePost, &Server::handleHead, &Server::handleDelete};
-	this->client_responses[socket_fd] = (this->*methods[method_enum])(file);
+	func methods[METHOD_COUNT] = {&Server::handleGet, &Server::handlePost, &Server::handlePut, &Server::handleHead, &Server::handleDelete};
+	this->client_responses[socket_fd] = (this->*methods[method_enum])(request, file);
 	// std::string body = (this->*methods[method_enum])(file);
 	//get body
 	//add content length
+	return (200);
 }
 
-void	Server::sendResponse(int socket_fd){
-	send(socket_fd, this->client_responses[socket_fd].c_str(), this->client_responses[socket_fd].length(), 0);
+/**
+ * @brief Add header to the response body and sent it
+ */
+void	Server::sendResponse(int socket_fd, int status_code){
+	std::string res = "HTTP/1.1 ";
+	res += std::to_string(status_code);
+	res += " ";
+	res += this->reason_phrases[status_code];
+	res += "\r\n";
+	res += "Content-Type: text/html\r\n";
+	res += "Content-Length: ";
+	res += std::to_string(this->client_responses[socket_fd].length());
+	res += "\r\n\r\n";
+	res += this->client_responses[socket_fd];
+	
+	int byteSend = send(socket_fd, res.c_str(), res.length(), 0);
+	if (byteSend < 0)
+		std::cout << COLOR_RED << "Error. Send failed at " << socket_fd << strerror(errno) << COLOR_RESET << std::endl;
 	this->client_requests.erase(socket_fd);
 	this->client_responses.erase(socket_fd);
 	close(socket_fd);
@@ -285,10 +334,73 @@ int	Server::checkReceive(std::string &msg){
 	return (1);
 }
 
+std::string Server::handleError(int status_code){
+	std::ifstream input;
+	std::stringstream buffer;
+
+	std::string line;
+	if (status_code == 404){
+		input.open(this->conf.error_pages[404]);
+		buffer << input.rdbuf();
+		return (buffer.str());
+	}
+	else if (status_code == 405){
+		input.open(this->conf.error_pages[405]);
+		buffer << input.rdbuf();
+		return (buffer.str());
+	}
+	return ("");
+}
+
 /**
  * @brief Read the file path of a target location and return the body of response
  */
-std::string	Server::handleGet(std::ifstream &file){
+//Input parameter is request data and location info struct
+std::string	Server::handleGet(requestData &request, std::ifstream &file){
+	(void)request;
+	std::stringstream buffer;
+	buffer << file.rdbuf();
+	std::string content = buffer.str();
+	return (content);
+}
+
+std::string	Server::handlePost(requestData &request, std::ifstream &file){
+	(void)file;
+	// std::string content = request.header.find
+	std::string line;
+	std::istringstream iss(request.header);
+	while (std::getline(iss, line)) {
+        if (line.find("Content-Type") != std::string::npos) {
+            std::cout << line << std::endl;
+        }
+    }
+	// std::stringstream buffer;
+	// buffer << file.rdbuf();
+	// std::string content = buffer.str();
+
+	// std::string res = "HTTP/1.1 200 OK\r\n"
+	// 						"Content-Type: text/html\r\n"
+	// 						"Content-Length: " + std::to_string(content.length()) + "\r\n"
+	// 						"\r\n" + content;
+	return ("");
+}
+
+std::string	Server::handlePut(requestData &request, std::ifstream &file){
+	(void)request;
+	(void)file;
+	// std::stringstream buffer;
+	// buffer << file.rdbuf();
+	// std::string content = buffer.str();
+
+	// std::string res = "HTTP/1.1 200 OK\r\n"
+	// 						"Content-Type: text/html\r\n"
+	// 						"Content-Length: " + std::to_string(content.length()) + "\r\n"
+	// 						"\r\n" + content;
+	return ("");
+}
+
+std::string	Server::handleHead(requestData &request, std::ifstream &file){
+	(void)request;
 	std::stringstream buffer;
 	buffer << file.rdbuf();
 	std::string content = buffer.str();
@@ -300,31 +412,8 @@ std::string	Server::handleGet(std::ifstream &file){
 	return (res);
 }
 
-std::string	Server::handlePost(std::ifstream &file){
-	std::stringstream buffer;
-	buffer << file.rdbuf();
-	std::string content = buffer.str();
-
-	std::string res = "HTTP/1.1 200 OK\r\n"
-							"Content-Type: text/html\r\n"
-							"Content-Length: " + std::to_string(content.length()) + "\r\n"
-							"\r\n" + content;
-	return (res);
-}
-
-std::string	Server::handleHead(std::ifstream &file){
-	std::stringstream buffer;
-	buffer << file.rdbuf();
-	std::string content = buffer.str();
-
-	std::string res = "HTTP/1.1 200 OK\r\n"
-							"Content-Type: text/html\r\n"
-							"Content-Length: " + std::to_string(content.length()) + "\r\n"
-							"\r\n" + content;
-	return (res);
-}
-
-std::string	Server::handleDelete(std::ifstream &file){
+std::string	Server::handleDelete(requestData &request, std::ifstream &file){
+	(void)request;
 	std::stringstream buffer;
 	buffer << file.rdbuf();
 	std::string content = buffer.str();

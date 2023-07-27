@@ -16,6 +16,7 @@
 # include <sys/types.h>
 # include <sys/socket.h>
 # include <sys/time.h>
+# include <sys/stat.h>
 # include <fstream>
 # include <netdb.h>
 # include <iostream>
@@ -37,6 +38,7 @@
 enum METHOD{
 	GET = 0,
 	POST,
+	PUT,
 	HEAD,
 	DELETE,
 	METHOD_COUNT,
@@ -66,7 +68,7 @@ struct serverConf{
 	int			total_port;
 	std::string server_name;
 	std::string root;
-	// std::vector<std::string>	error_pages;
+	std::map<int, std::string>	error_pages;
 	std::map<std::string, locationInfo> locations;
 };
 

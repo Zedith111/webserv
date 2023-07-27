@@ -1,18 +1,21 @@
 use valgrind to check memory leak without deleting serverconf
+when error, need successfully free location map
+
+Check path is absolute or relative
 # Complete parser
-    
-    swap position of server name and listen
-    understand server name and root variable
-    Get all location block variable and prepare struct
+    Test location block
+        missing root(need automatic inherit from server block)
+    Check inproper "{" and "}" 
     Check root has "/" at the end, if yes, delete it
     add "./" to the beginning of root/aboslute or relative path
     location block
         limit except
+    If no limit except, set method to all
 # Handle request
-    change getHeader to send error page
+    when passing route, check for root directory, if have index variable
     Handle /fav.ico
     Check auto index and index which will be dominant
-    Change handle method to not member function
+    when not member function failed, close socket and clear in FdSet
 
 Check leak
 Handle address other than localhost
@@ -32,6 +35,7 @@ multiple port.
 multiple server
 Accept should not quit
 if too long not receive header, send error
+/directory/ should have different file
 
 
 sin_port = 0 bind to all port
