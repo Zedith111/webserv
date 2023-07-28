@@ -19,14 +19,23 @@ ConfigParser::ConfigParser(){
 }
 
 ConfigParser::~ConfigParser(){
-	// for(size_t i = 0; i < this->serverConfs.size(); i++){
-	// 	delete (&this->serverConfs[i]);
-	// }
-	while (!serverConfs.empty()) {
-		std::cout << "deleting" << std::endl;
-    	delete serverConfs.back(); // Delete the last dynamically allocated struct
-   		serverConfs.pop_back();    // Remove the pointer from the vector
+	std::cout << "Config Parser Destructor called" << std::endl;
+	for (size_t i = 0; i < this->serverConfs.size(); i++){
+		serverConf *current = this->serverConfs[i];
+		if (current != NULL){
+			std::map<std::string, locationInfo *>::iterator it;
+			for (it = current->locations.begin(); it != current->locations.end();){
+				delete it->second;
+				it = current->locations.erase(it);
+			}
+		}
+		delete current;
 	}
+	// while (!serverConfs.empty()) {
+	// 	std::cout << "Deleting" << std::endl;
+    // 	delete serverConfs.back(); // Delete the last dynamically allocated struct
+   	// 	serverConfs.pop_back();    // Remove the pointer from the vector
+	// }
 }
 
 int	ConfigParser::parse(std::string &path){
@@ -84,6 +93,7 @@ int	ConfigParser::parseToken(){
 		std::cout << COLOR_RED << "Error. Block not enclosed properly" << COLOR_RESET << std::endl;
 		return (0);
 	}
+	std::cout << "Finish" << std::endl;
 	return (1);
 }
 
@@ -170,7 +180,7 @@ int	ConfigParser::parseLocation(size_t &current, int indent_level, serverConf *c
 		current += 1;
 	}
 	// std::cout << "Current: " << this->tokens[current] << std::endl;
-	currentConf->locations[route] = *new_location;
+	currentConf->locations[route] = new_location;
 	return 1;
 }
 
@@ -220,7 +230,12 @@ int ConfigParser::parseServerName(size_t &current, serverConf *current_conf){
 
 int ConfigParser::parseRoot(size_t &current, serverConf *current_conf){
 	current += 1;
-	current_conf->root = this->tokens[current];
+	std::string path = this->tokens[current];
+	if (checkIsDirectory(path) != 1){
+		std::cout << COLOR_RED << "Error. Invalid root path: " << path << COLOR_RESET << std::endl;
+		return (0);
+	}
+	current_conf->root = path;
 	current += 1;
 	if (this->tokens[current] != ";"){
 		std::cout << COLOR_RED << "Error: missing ending character ; after " << this->tokens[current - 1] << COLOR_RESET << std::endl;
@@ -298,15 +313,15 @@ void	ConfigParser::printConf(){
 		std::cout << std::endl;
 		std::cout << "Server Name: " << this->serverConfs[i]->server_name << std::endl;
 		std::cout << "Root: " << this->serverConfs[i]->root << std::endl;
-		std::map<std::string, locationInfo>::iterator iter;
+		std::map<std::string, locationInfo *>::iterator iter;
 		for(iter=this->serverConfs[i]->locations.begin(); iter!=this->serverConfs[i]->locations.end(); ++iter){
 			std::cout << "Route: " << iter->first << std::endl;
-			std::cout << "\tRoot: " << iter->second.root << std::endl;
-			std::cout << "\tIndex: " << iter->second.index << std::endl;
-			std::cout << "\tAutoindex: " << iter->second.autoindex << std::endl;
+			std::cout << "\tRoot: " << iter->second->root << std::endl;
+			std::cout << "\tIndex: " << iter->second->index << std::endl;
+			std::cout << "\tAutoindex: " << iter->second->autoindex << std::endl;
 			std::cout << "\tLimit Except: ";
-			for (size_t j=0; j < iter->second.limit_except.size(); j++){
-				std::cout << iter->second.limit_except[j] << ", ";
+			for (size_t j=0; j < iter->second->limit_except.size(); j++){
+				std::cout << iter->second->limit_except[j] << ", ";
 			}
 			std::cout << std::endl;
 		}

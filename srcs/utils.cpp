@@ -6,7 +6,7 @@
 /*   By: zah <zah@student.42kl.edu.my>              +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2023/07/24 13:14:45 by zah               #+#    #+#             */
-/*   Updated: 2023/07/27 20:41:46 by zah              ###   ########.fr       */
+/*   Updated: 2023/07/28 16:19:24 by zah              ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -32,7 +32,7 @@ int	checkIsDirectory(std::string &path){
 	struct stat file_info;
 	int res = stat(path.c_str(), &file_info);
 	if (res < 0){
-		"." + path;
+		path = "." + path;
 		res = stat(path.c_str(), &file_info);
 		if (res < 0){
 			return (-1);

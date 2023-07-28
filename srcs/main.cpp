@@ -27,18 +27,19 @@ int	main(int argc, char **argv){
 	else{
 		filePath = argv[1];
 	}
-	// ConfigParser confParser;
-	// if (!confParser.parse(filePath))
-	// 	return (1);
-	// confParser.printConf();
+	ConfigParser confParser;
+	if (!confParser.parse(filePath))
+		return (1);
+	std::cout << "Printing conf file: \n";
+	confParser.printConf();
 
 	//Check contain error page, if not obtain from default
 	//Check error page and compulsory cgi(autoindex) can be can be used
 
-	Server server;
-	if (!server.init())
-		return (1);
-	server.run();
+	// Server server;
+	// if (!server.init())
+	// 	return (1);
+	// server.run();
 }
 
 

@@ -14,6 +14,7 @@
 # define CONFIGPARSER_HPP
 
 # include "Tokenizer.hpp"
+# include "utils.hpp"
 
 # include <vector>
 # include <sstream>

@@ -69,7 +69,7 @@ struct serverConf{
 	std::string server_name;
 	std::string root;
 	std::map<int, std::string>	error_pages;
-	std::map<std::string, locationInfo> locations;
+	std::map<std::string, locationInfo *> locations;
 };
 
 # ifndef DEBUG

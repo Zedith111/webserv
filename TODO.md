@@ -3,6 +3,7 @@ when error, need successfully free location map
 
 Check path is absolute or relative
 # Complete parser
+    Check if use relative path, will add "." to the beginning
     Test location block
         missing root(need automatic inherit from server block)
     Check inproper "{" and "}" 
@@ -12,6 +13,7 @@ Check path is absolute or relative
         limit except
     If no limit except, set method to all
 # Handle request
+    check if route ha multiple "/"
     when passing route, check for root directory, if have index variable
     Handle /fav.ico
     Check auto index and index which will be dominant
