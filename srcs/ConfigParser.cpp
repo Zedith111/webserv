@@ -14,14 +14,14 @@
 
 ConfigParser::ConfigParser(){
 	this->delimiter = " \r\t\n";
-	this->specialChar = ";{}";
-	this->tokenizer = Tokenizer(this->delimiter, this->specialChar);
+	this->special_char = ";{}";
+	this->tokenizer = Tokenizer(this->delimiter, this->special_char);
 }
 
 ConfigParser::~ConfigParser(){
 	std::cout << "Config Parser Destructor called" << std::endl;
-	for (size_t i = 0; i < this->serverConfs.size(); i++){
-		serverConf *current = this->serverConfs[i];
+	for (size_t i = 0; i < this->server_confs.size(); i++){
+		serverConf *current = this->server_confs[i];
 		if (current != NULL){
 			std::map<std::string, locationInfo *>::iterator it;
 			for (it = current->locations.begin(); it != current->locations.end();){
@@ -31,11 +31,6 @@ ConfigParser::~ConfigParser(){
 		}
 		delete current;
 	}
-	// while (!serverConfs.empty()) {
-	// 	std::cout << "Deleting" << std::endl;
-    // 	delete serverConfs.back(); // Delete the last dynamically allocated struct
-   	// 	serverConfs.pop_back();    // Remove the pointer from the vector
-	// }
 }
 
 int	ConfigParser::parse(std::string &path){
@@ -71,7 +66,7 @@ int	ConfigParser::parseToken(){
 		}
 		if (this->tokens[i] == "server"){
 			if (current_conf != NULL){
-				this->serverConfs.push_back(current_conf);
+				this->server_confs.push_back(current_conf);
 			}
 			else
 				current_conf = new serverConf;
@@ -87,7 +82,7 @@ int	ConfigParser::parseToken(){
 		}
 	}
 	if (current_conf != NULL){
-		this->serverConfs.push_back(current_conf);
+		this->server_confs.push_back(current_conf);
 	}
 	if (indent_level != 0){
 		std::cout << COLOR_RED << "Error. Block not enclosed properly" << COLOR_RESET << std::endl;
@@ -98,10 +93,11 @@ int	ConfigParser::parseToken(){
 }
 
 int	ConfigParser::parseServer(size_t &current, int indent_level, serverConf *current_conf){
-	std::string	keys[] = {"listen", "server_name", "root"};
+	std::string	keys[] = {"listen", "server_name", "root", "error_pages"};
 	const int			key_size = sizeof(keys) / sizeof(keys[0]);
 	typedef int (ConfigParser::*func)(size_t &, serverConf *);
-	func	key_funcs[key_size] = {&ConfigParser::parseListen, &ConfigParser::parseServerName, &ConfigParser::parseRoot};
+	func	key_funcs[key_size] = {&ConfigParser::parseListen, &ConfigParser::parseServerName, &ConfigParser::parseRoot, 
+					&ConfigParser::parseErrorPages};
 
 	//Check present of server block
 	if (current_conf == NULL){
@@ -134,7 +130,6 @@ int	ConfigParser::parseServer(size_t &current, int indent_level, serverConf *cur
 	return 1;
 }
 
-//parse until },
 int	ConfigParser::parseLocation(size_t &current, int indent_level, serverConf *currentConf){
 	//Check present of server block
 	if (currentConf == NULL){
@@ -179,9 +174,32 @@ int	ConfigParser::parseLocation(size_t &current, int indent_level, serverConf *c
 			return (0);
 		current += 1;
 	}
-	// std::cout << "Current: " << this->tokens[current] << std::endl;
 	currentConf->locations[route] = new_location;
 	return 1;
+}
+
+/**
+ * @brief Check and fill out necessary information if the config file does nor provide.
+ * This includes:
+ * 		- Necessary information, including host, port,root, server_name
+ * 		- Check the error pages, if one of missing, fill out with default error pages
+ * 		- Attach server root of location root 
+ * Will return error if:
+ * 		- Missing necessary information
+ * 		- Invalid directory of location root
+ */
+int ConfigParser::validateConfig(){
+	for (size_t i = 0; i < this->server_confs.size(); i++){
+		serverConf *current_conf = this->server_confs[i];
+		if (current_conf->host.empty() || current_conf->port_number.empty() || current_conf->root.empty() || current_conf->server_name.empty()){
+			std::cout << COLOR_RED << "Error. Missing necessary information in server block" << COLOR_RESET << std::endl;
+			return (0);
+		}
+		if (validateLocationRoot(current_conf) == 0)
+			return (0);
+		addErrorpages(current_conf);
+	}
+	return (1);
 }
 
 int	ConfigParser::parseListen(size_t &current, serverConf *current_conf){
@@ -221,11 +239,7 @@ int ConfigParser::parseServerName(size_t &current, serverConf *current_conf){
 	current += 1;
 	current_conf->server_name = this->tokens[current];
 	current += 1;
-	if (this->tokens[current] != ";"){
-		std::cout << COLOR_RED << "Error: missing ending character ; after " << this->tokens[current - 1] << COLOR_RESET << std::endl;
-		return (0);
-	}
-	return (1);
+	return (checkEnding(current));
 }
 
 int ConfigParser::parseRoot(size_t &current, serverConf *current_conf){
@@ -237,11 +251,25 @@ int ConfigParser::parseRoot(size_t &current, serverConf *current_conf){
 	}
 	current_conf->root = path;
 	current += 1;
-	if (this->tokens[current] != ";"){
-		std::cout << COLOR_RED << "Error: missing ending character ; after " << this->tokens[current - 1] << COLOR_RESET << std::endl;
+	return (checkEnding(current));
+}
+
+int ConfigParser::parseErrorPages(size_t &current, serverConf *current_conf){
+	current += 1;
+	std::istringstream iss(this->tokens[current]);
+	int error_code;
+	if (!(iss >> error_code)){
+		std::cout << COLOR_RED << "Error. Invalid error code: " << this->tokens[current] << COLOR_RESET << std::endl;
 		return (0);
 	}
-	return (1);
+	current += 1;
+	if (checkIsDirectory(this->tokens[current]) != 0){
+		std::cout << COLOR_RED << "Error. Invalid error page path: " << this->tokens[current] << COLOR_RESET << std::endl;
+		return (0);
+	}
+	current_conf->error_pages[error_code] = this->tokens[current];
+	current +=1;
+	return (checkEnding(current));
 }
 
 int	ConfigParser::parseAutoindex(size_t &current, locationInfo *current_loc){
@@ -251,38 +279,25 @@ int	ConfigParser::parseAutoindex(size_t &current, locationInfo *current_loc){
 	else if (this->tokens[current] == "off")
 		current_loc->autoindex = false;
 	else{
-		std::cout << COLOR_RED << "Error. Invalid autoindex value: " << this->tokens[current] << COLOR_RESET << std::endl;
+		std::cout << COLOR_RED << "Error. Invalid value of autoindex: " << this->tokens[current] << COLOR_RESET << std::endl;
 		return (0);
 	}
 	current += 1;
-	if (this->tokens[current] != ";"){
-		std::cout << COLOR_RED << "Error: missing ending character ; after " << this->tokens[current - 1] << COLOR_RESET << std::endl;
-		return (0);
-	}
-	return (1); 
-
+	return (checkEnding(current));
 }
 
 int ConfigParser::parseLocationRoot(size_t &current, locationInfo *current_loc){
 	current += 1;
 	current_loc->root = this->tokens[current];
 	current += 1;
-	if (this->tokens[current] != ";"){
-		std::cout << COLOR_RED << "Error: missing ending character ; after " << this->tokens[current - 1] << COLOR_RESET << std::endl;
-		return (0);
-	}
-	return (1); 
+	return (checkEnding(current));
 }
 
 int	ConfigParser::parseLocationIndex(size_t &current, locationInfo *current_loc){
 	current += 1;
 	current_loc->index = this->tokens[current];
 	current += 1;
-	if (this->tokens[current] != ";"){
-		std::cout << COLOR_RED << "Error: missing ending character ; after " << this->tokens[current - 1] << COLOR_RESET << std::endl;
-		return (0);
-	}
-	return (1); 
+	return (checkEnding(current));
 }
 
 int	ConfigParser::parseLimitExcept(size_t &current, locationInfo *current_loc){
@@ -303,25 +318,84 @@ int	ConfigParser::parseLimitExcept(size_t &current, locationInfo *current_loc){
 	return (1); 
 }
 
+int ConfigParser::initDefaultErrorpages(){
+	this->default_error_pages[404] = "./default_error_pages/404.html";
+	this->default_error_pages[405] = "./default_error_pages/405.html";
+
+	std::map<int, std::string>::iterator it;
+	for (it = this->default_error_pages.begin(); it != this->default_error_pages.end(); it++){
+		if (checkIsDirectory(it->second) != 0){
+			std::cout << COLOR_RED << "Error. Invalid default error page path: " << it->second << COLOR_RESET << std::endl;
+			return (0);
+		}
+		std::ifstream file(it->second);
+		if (!file.is_open()){
+			std::cout << COLOR_RED << "Error. Cannot open default error page: " << it->second << COLOR_RESET << std::endl;
+			return (0);
+		}
+		file.close();
+	}
+	return (1);
+}
+
+void ConfigParser::addErrorpages(serverConf *current_conf){
+	int all_codes[] = {404, 405};
+	const int codes_size = sizeof(all_codes) / sizeof(int);
+
+	for (int i = 0; i < codes_size; i++){
+		if (current_conf->error_pages.find(all_codes[i]) == current_conf->error_pages.end()){
+			current_conf->error_pages[all_codes[i]] = this->default_error_pages[all_codes[i]];
+		}
+	}
+}
+
+int ConfigParser::validateLocationRoot(serverConf *current_conf){
+	std::map<std::string, locationInfo*>::iterator it;
+	for (it = current_conf->locations.begin(); it != current_conf->locations.end(); it++){
+		if (!it->second->root.empty()){
+			std::string full_path = current_conf->root + it->second->root;
+			if (checkIsDirectory(full_path) != 1){
+				std::cout << COLOR_RED << "Error. Invalid location root path: " << full_path << COLOR_RESET << std::endl;
+				return (0);
+			}
+			it->second->root = full_path;
+		}
+	}
+	return (1);
+}
+
+int ConfigParser::checkEnding(size_t &current){
+	if (this->tokens[current] != ";"){
+		std::cout << COLOR_RED << "Error: missing ending character ; after " << this->tokens[current - 1] << COLOR_RESET << std::endl;
+		return (0);
+	}
+	return (1); 
+}
+
 void	ConfigParser::printConf(){
-	for (size_t i = 0; i < this->serverConfs.size(); i++){
-		std::cout << "Host: " << this->serverConfs[i]->host << std::endl;
+	for (size_t i = 0; i < this->server_confs.size(); i++){
+		std::cout << "Host: " << this->server_confs[i]->host << std::endl;
 		std::cout << "Port: " ;
-		for (size_t j=0; j < this->serverConfs[i]->port_number.size(); j++){
-			std::cout << this->serverConfs[i]->port_number[j] << ", ";
+		for (size_t j=0; j < this->server_confs[i]->port_number.size(); j++){
+			std::cout << this->server_confs[i]->port_number[j] << ", ";
 		}
 		std::cout << std::endl;
-		std::cout << "Server Name: " << this->serverConfs[i]->server_name << std::endl;
-		std::cout << "Root: " << this->serverConfs[i]->root << std::endl;
-		std::map<std::string, locationInfo *>::iterator iter;
-		for(iter=this->serverConfs[i]->locations.begin(); iter!=this->serverConfs[i]->locations.end(); ++iter){
-			std::cout << "Route: " << iter->first << std::endl;
-			std::cout << "\tRoot: " << iter->second->root << std::endl;
-			std::cout << "\tIndex: " << iter->second->index << std::endl;
-			std::cout << "\tAutoindex: " << iter->second->autoindex << std::endl;
+		std::cout << "Server Name: " << this->server_confs[i]->server_name << std::endl;
+		std::cout << "Root: " << this->server_confs[i]->root << std::endl;
+		std::cout << "Error Pages: " << std::endl;
+		std::map<int, std::string>::iterator error_iter;
+		for(error_iter=this->server_confs[i]->error_pages.begin(); error_iter!=this->server_confs[i]->error_pages.end(); ++error_iter){
+			std::cout << "\t" << error_iter->first << ": " << error_iter->second << std::endl;
+		}
+		std::map<std::string, locationInfo *>::iterator loc_iter;
+		for(loc_iter=this->server_confs[i]->locations.begin(); loc_iter!=this->server_confs[i]->locations.end(); ++loc_iter){
+			std::cout << "Route: " << loc_iter->first << std::endl;
+			std::cout << "\tRoot: " << loc_iter->second->root << std::endl;
+			std::cout << "\tIndex: " << loc_iter->second->index << std::endl;
+			std::cout << "\tAutoindex: " << loc_iter->second->autoindex << std::endl;
 			std::cout << "\tLimit Except: ";
-			for (size_t j=0; j < iter->second->limit_except.size(); j++){
-				std::cout << iter->second->limit_except[j] << ", ";
+			for (size_t j=0; j < loc_iter->second->limit_except.size(); j++){
+				std::cout << loc_iter->second->limit_except[j] << ", ";
 			}
 			std::cout << std::endl;
 		}

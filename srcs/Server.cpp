@@ -25,7 +25,7 @@ Server::Server(){
 	base.index = "index.html";
 	base.autoindex = false;
 	base.limit_except.push_back("GET");
-	this->conf.locations["/"] = base;
+	this->conf.locations["/"] = &base;
 	
 
 	locationInfo test;
@@ -34,7 +34,7 @@ Server::Server(){
 	test.autoindex = false;
 	test.limit_except.push_back("GET");
 	test.limit_except.push_back("POST");
-	this->conf.locations["/post"] = test;
+	this->conf.locations["/post"] = &test;
 
 	//Add error page
 	this->conf.error_pages[404] = "./www/error/404.html";
@@ -257,8 +257,8 @@ int		Server::handleRequest(int socket_fd){
 		std::cout << "Request Body: " << std::endl << request.body << std::endl;
 		std::cout << "Method: " << method << std::endl;
 		std::cout << "path: " << path << std::endl;
-		std::cout << this->conf.locations[path].root << std::endl;
-		std::cout << this->conf.locations[path].index << std::endl;
+		std::cout << this->conf.locations[path]->root << std::endl;
+		std::cout << this->conf.locations[path]->index << std::endl;
 	}
 	//Check if request can be handled
 	if (this->conf.locations.find(path) == this->conf.locations.end()){
@@ -266,7 +266,8 @@ int		Server::handleRequest(int socket_fd){
 		this->client_responses[socket_fd] = this->handleError(404);
 		return (404);
 	}
-	int request_method = checkMethod(method, this->conf.locations[path].limit_except);
+	//Print limit except here
+	int request_method = checkMethod(method, this->conf.locations[path]->limit_except);
 	if (request_method == -1){
 		std::cout << COLOR_RED << "Error. Method " << method << " is not allowed"  << COLOR_RESET << std::endl;
 		this->client_responses[socket_fd] = this->handleError(405);
@@ -274,7 +275,7 @@ int		Server::handleRequest(int socket_fd){
 	}
 
 	//TODO: handle when no index but have autoindex on
-	std::ifstream file(this->conf.locations[path].root + "/" + this->conf.locations[path].index);
+	std::ifstream file(this->conf.locations[path]->root + "/" + this->conf.locations[path]->index);
 	if (!file.is_open()){
 		std::cout << COLOR_RED << "Error. File not found" << COLOR_RESET << std::endl;
 		this->client_responses[socket_fd] = this->handleError(404);

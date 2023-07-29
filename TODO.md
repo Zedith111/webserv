@@ -1,24 +1,25 @@
 use valgrind to check memory leak without deleting serverconf
-when error, need successfully free location map
-
-Check path is absolute or relative
 # Complete parser
-    Check if use relative path, will add "." to the beginning
-    Test location block
-        missing root(need automatic inherit from server block)
     Check inproper "{" and "}" 
-    Check root has "/" at the end, if yes, delete it
-    add "./" to the beginning of root/aboslute or relative path
-    location block
-        limit except
-    If no limit except, set method to all
 # Handle request
+    First check if matching route, if yes, search for index, if no, check autoindex
+    Then check if directory route
+    First checki if is specific file, if yes then send the specific file, 
+    then check for index, after that autoindex
+    Default search for index first. If not found, then handle other
+    Split the route, check mataching location block(if has "/" behind, then is a directory route)
+        if is directory route, split the route, and find respective file
+    if got index, use index.html, if no index, 
+    if no limit_except present, dont check
+    in no index present, search for file
     check if route ha multiple "/"
     when passing route, check for root directory, if have index variable
     Handle /fav.ico
     Check auto index and index which will be dominant
     when not member function failed, close socket and clear in FdSet
 
+Location block before server block
+Mulitiple root present
 Check leak
 Handle address other than localhost
 parser->data structure

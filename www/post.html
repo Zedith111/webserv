@@ -1,0 +1,49 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>POST Request with text/plain Content-Type</title>
+</head>
+<body>
+    <h2>Send a POST Request with text/plain Content-Type</h2>
+    <form id="myForm">
+        <label for="data">Enter your text:</label><br>
+        <textarea id="data" name="data" rows="4" cols="50"></textarea><br>
+        <button type="button" onclick="sendPostRequest()">Submit</button>
+    </form>
+
+    <script>
+        function sendPostRequest() {
+            // Get the data from the textarea
+            const data = document.getElementById("data").value;
+
+            // Create a new XMLHttpRequest object
+            const xhr = new XMLHttpRequest();
+
+            // Set up the request
+            xhr.open("POST", "http://localhost:8080/post");
+            xhr.setRequestHeader("Content-Type", "text/plain");
+
+            // Set up the event listener for when the request completes
+            xhr.onload = function() {
+                if (xhr.status >= 200 && xhr.status < 300) {
+                    // Request was successful
+                    alert("POST request successful!");
+                } else {
+                    // Request failed
+                    alert("POST request failed. Status: " + xhr.status + " - " + xhr.statusText);
+                }
+            };
+
+            // Set up the event listener for when there's an error
+            xhr.onerror = function() {
+                alert("An error occurred while sending the request.");
+            };
+
+            // Send the request
+            xhr.send(data);
+        }
+    </script>
+</body>
+</html>
+
