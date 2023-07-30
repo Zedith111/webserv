@@ -44,3 +44,9 @@ int	checkIsDirectory(std::string &path){
 		return (0);
 	}
 }
+
+std::string intToString(int num){
+	std::stringstream ss;
+	ss << num;
+	return (ss.str());
+}

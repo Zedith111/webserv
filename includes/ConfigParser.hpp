@@ -60,6 +60,8 @@ class ConfigParser{
 		int	parse(std::string &path);
 		int validateConfig();
 		void printConf();
+		serverConf getConfig(size_t i);
+		size_t getServerCount();
 };
 
 #endif

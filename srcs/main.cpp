@@ -27,23 +27,27 @@ int	main(int argc, char **argv){
 	else{
 		filePath = argv[1];
 	}
-	// ConfigParser confParser;
-	// if (!confParser.initDefaultErrorpages())
-	// 	return (1);
-	// if (!confParser.parse(filePath))
-	// 	return (1);
-	// if (!confParser.validateConfig())
-	// 	return (1);
-	// if (DEBUG)
-	// 	confParser.printConf();
+	ConfigParser confParser;
+	if (!confParser.initDefaultErrorpages())
+		return (1);
+	if (!confParser.parse(filePath))
+		return (1);
+	if (!confParser.validateConfig())
+		return (1);
+	if (DEBUG)
+		confParser.printConf();
+
+	//Check error page and compulsory cgi(autoindex) can be can be used
+	//Check if both server use same port and host, if yes, use the first one and print warning
+
+	// for(size_t i = 0; i < confParser.getServerCount(); i++){
+	// 	Server server(confParser.getConfig(i));
+	// 	if (!server.init())
+	// 		return (1);
+	// 	server.run();
+	// }
 
 	
-	//Check error page and compulsory cgi(autoindex) can be can be used
-
-	Server server;
-	if (!server.init())
-		return (1);
-	server.run();
 }
 
 

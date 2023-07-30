@@ -1,6 +1,15 @@
-use valgrind to check memory leak without deleting serverconf
+valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes  --verbose     
+     --log-file=valgrind-out.txt          ./webserv config/test.conf
+    
 # Complete parser
+    check can parse second server
     Check inproper "{" and "}" 
+    Check root has "/" at the end, if yes, delete it
+    add "./" to the beginning of root/aboslute or relative path
+    location block
+        limit except
+    If no limit except, set method to all
+    after parse, add check method(error page can open, same host and port, use first one)
 # Handle request
     First check if matching route, if yes, search for index, if no, check autoindex
     Then check if directory route
@@ -17,6 +26,8 @@ use valgrind to check memory leak without deleting serverconf
     Handle /fav.ico
     Check auto index and index which will be dominant
     when not member function failed, close socket and clear in FdSet
+    sent bad request
+    check http version
 
 Location block before server block
 Mulitiple root present

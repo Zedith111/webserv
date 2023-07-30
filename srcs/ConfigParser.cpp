@@ -24,9 +24,9 @@ ConfigParser::~ConfigParser(){
 		serverConf *current = this->server_confs[i];
 		if (current != NULL){
 			std::map<std::string, locationInfo *>::iterator it;
-			for (it = current->locations.begin(); it != current->locations.end();){
-				delete it->second;
-				it = current->locations.erase(it);
+			for (it = current->locations.begin(); it != current->locations.end();) {
+    			delete it->second;
+   				current->locations.erase(it++);
 			}
 		}
 		delete current;
@@ -68,8 +68,7 @@ int	ConfigParser::parseToken(){
 			if (current_conf != NULL){
 				this->server_confs.push_back(current_conf);
 			}
-			else
-				current_conf = new serverConf;
+			current_conf = new serverConf;
 			continue ;
 		}
 		if (this->tokens[i] == "location"){
@@ -205,6 +204,7 @@ int ConfigParser::validateConfig(){
 int	ConfigParser::parseListen(size_t &current, serverConf *current_conf){
 	current += 1;
 	if (!current_conf->host.empty()){
+		std::cout << "Current: " << this->tokens[current] << std::endl;
 		std::cout << COLOR_RED << "Error. Multiple host present" << COLOR_RESET << std::endl;
 		return (0);
 	}
@@ -328,7 +328,7 @@ int ConfigParser::initDefaultErrorpages(){
 			std::cout << COLOR_RED << "Error. Invalid default error page path: " << it->second << COLOR_RESET << std::endl;
 			return (0);
 		}
-		std::ifstream file(it->second);
+		std::ifstream file(it->second.c_str());
 		if (!file.is_open()){
 			std::cout << COLOR_RED << "Error. Cannot open default error page: " << it->second << COLOR_RESET << std::endl;
 			return (0);
@@ -370,6 +370,14 @@ int ConfigParser::checkEnding(size_t &current){
 		return (0);
 	}
 	return (1); 
+}
+
+serverConf ConfigParser::getConfig(size_t i){
+	return (*(this->server_confs[i]));
+}
+
+size_t ConfigParser::getServerCount(){
+	return (this->server_confs.size());
 }
 
 void	ConfigParser::printConf(){

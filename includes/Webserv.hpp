@@ -65,7 +65,6 @@ struct locationInfo{
 struct serverConf{
 	std::string host;
 	std::vector<std::string>	port_number;
-	int			total_port;
 	std::string server_name;
 	std::string root;
 	std::map<int, std::string>	error_pages;

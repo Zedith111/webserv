@@ -14,40 +14,46 @@
 
 Server::Server(){
 	//Configure port
-	this->conf.host = "127.0.0.1";
-	this->conf.port_number.push_back("8080");
-	this->conf.port_number.push_back("8081");
-	this->conf.total_port = 2;
+	// this->conf.host = "127.0.0.1";
+	// this->conf.port_number.push_back("8080");
+	// this->conf.port_number.push_back("8081");
+	// this->conf.total_port = 2;
 
-	//Add html
-	locationInfo base;
-	base.root = "./www";
-	base.index = "index.html";
-	base.autoindex = false;
-	base.limit_except.push_back("GET");
-	this->conf.locations["/"] = &base;
+	// //Add html
+	// locationInfo base;
+	// base.root = "./www";
+	// base.index = "index.html";
+	// base.autoindex = false;
+	// base.limit_except.push_back("GET");
+	// this->conf.locations["/"] = &base;
 	
 
-	locationInfo test;
-	test.root = "./www";
-	test.index = "post.html";
-	test.autoindex = false;
-	test.limit_except.push_back("GET");
-	test.limit_except.push_back("POST");
-	this->conf.locations["/post"] = &test;
+	// locationInfo test;
+	// test.root = "./www";
+	// test.index = "post.html";
+	// test.autoindex = false;
+	// test.limit_except.push_back("GET");
+	// test.limit_except.push_back("POST");
+	// this->conf.locations["/post"] = &test;
 
-	//Add error page
-	this->conf.error_pages[404] = "./www/error/404.html";
-	this->conf.error_pages[405] = "./www/error/405.html";
+	// //Add error page
+	// this->conf.error_pages[404] = "./www/error/404.html";
+	// this->conf.error_pages[405] = "./www/error/405.html";
 
-	//Add reason phrase
-	this->reason_phrases[200] = "OK";
-	this->reason_phrases[404] = "Not Found";
-	this->reason_phrases[405] = "Method Not Allowed";
+	// //Add reason phrase
+	// this->reason_phrases[200] = "OK";
+	// this->reason_phrases[404] = "Not Found";
+	// this->reason_phrases[405] = "Method Not Allowed";
 
 
-	std::cout << "Current Config" << std::endl;
-	std::cout << this->conf << std::endl;
+	// std::cout << "Current Config" << std::endl;
+	// std::cout << this->conf << std::endl;
+}
+
+Server::Server(serverConf conf){
+	this->conf = conf;
+	
+	printConfig(this->conf);
 }
 
 Server::~Server(){
@@ -75,7 +81,7 @@ int	Server::init(){
 	hints.ai_socktype = SOCK_STREAM;
 	hints.ai_flags = AI_PASSIVE;
 
-	for (int i = 0; i < this->conf.total_port; i++){
+	for (size_t i = 0; i < this->conf.port_number.size(); i++){
 		int	status = getaddrinfo(
 			this->conf.host.c_str(),
 			this->conf.port_number[i].c_str(),
@@ -129,7 +135,6 @@ int	Server::init(){
 		}
 		this->socket_fds.push_back(socket_fd);
 		std::cout << COLOR_GREEN << "Socket listening sucess" << COLOR_RESET << std::endl;
-
 	}
 	std::cout << COLOR_GREEN << "Server initialization complete" << COLOR_RESET << std::endl;
 	freeaddrinfo(res);
@@ -275,9 +280,10 @@ int		Server::handleRequest(int socket_fd){
 	}
 
 	//TODO: handle when no index but have autoindex on
-	std::ifstream file(this->conf.locations[path]->root + "/" + this->conf.locations[path]->index);
+	std::string full_path = this->conf.locations[path]->root + "/" + this->conf.locations[path]->index;
+	std::ifstream file(full_path.c_str());
 	if (!file.is_open()){
-		std::cout << COLOR_RED << "Error. File not found" << COLOR_RESET << std::endl;
+		std::cout << COLOR_RED << "Error. File not found. " << full_path << COLOR_RESET << std::endl;
 		this->client_responses[socket_fd] = this->handleError(404);
 	}
 	
@@ -296,13 +302,13 @@ int		Server::handleRequest(int socket_fd){
  */
 void	Server::sendResponse(int socket_fd, int status_code){
 	std::string res = "HTTP/1.1 ";
-	res += std::to_string(status_code);
+	res += intToString(status_code);
 	res += " ";
 	res += this->reason_phrases[status_code];
 	res += "\r\n";
 	res += "Content-Type: text/html\r\n";
 	res += "Content-Length: ";
-	res += std::to_string(this->client_responses[socket_fd].length());
+	res += intToString(this->client_responses[socket_fd].length());
 	res += "\r\n\r\n";
 	res += this->client_responses[socket_fd];
 	
@@ -341,12 +347,12 @@ std::string Server::handleError(int status_code){
 
 	std::string line;
 	if (status_code == 404){
-		input.open(this->conf.error_pages[404]);
+		input.open(this->conf.error_pages[404].c_str());
 		buffer << input.rdbuf();
 		return (buffer.str());
 	}
 	else if (status_code == 405){
-		input.open(this->conf.error_pages[405]);
+		input.open(this->conf.error_pages[405].c_str());
 		buffer << input.rdbuf();
 		return (buffer.str());
 	}
@@ -408,7 +414,7 @@ std::string	Server::handleHead(requestData &request, std::ifstream &file){
 
 	std::string res = "HTTP/1.1 200 OK\r\n"
 							"Content-Type: text/html\r\n"
-							"Content-Length: " + std::to_string(content.length()) + "\r\n"
+							"Content-Length: " + intToString(content.length()) + "\r\n"
 							"\r\n" + content;
 	return (res);
 }
@@ -421,14 +427,14 @@ std::string	Server::handleDelete(requestData &request, std::ifstream &file){
 
 	std::string res = "HTTP/1.1 200 OK\r\n"
 							"Content-Type: text/html\r\n"
-							"Content-Length: " + std::to_string(content.length()) + "\r\n"
+							"Content-Length: " + intToString(content.length()) + "\r\n"
 							"\r\n" + content;
 	return (res);
 }
 
 std::ostream&	operator<<(std::ostream& os, const serverConf& obj){
 	os << "Host name: "  << obj.host << std::endl;
-	for (int i = 0; i < obj.total_port; i++){
+	for (size_t i = 0; i < obj.port_number.size(); i++){
 		os << "Port number: " << obj.port_number[i] <<std::endl;
 	}
 	os << "End of Config File";

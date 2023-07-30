@@ -17,5 +17,6 @@
 
 void printConfig(serverConf &conf);
 int	checkIsDirectory(std::string &path);
+std::string intToString(int num);
 
 #endif

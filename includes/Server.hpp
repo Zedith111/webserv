@@ -15,6 +15,7 @@
 
 # include "Webserv.hpp"
 # include "serverUtils.hpp"
+# include "utils.hpp"
 # include <vector>
 # include <sys/select.h>
 
@@ -68,6 +69,7 @@ class Server{
 		
 	public:
 		Server();
+		Server(serverConf conf);
 		~Server();
 		int				init();
 		void			run();
