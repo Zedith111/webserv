@@ -37,6 +37,8 @@
 // };
 
 struct requestData{
+	int server_fd;
+	std::string whole_request;
 	std::string header;
 	METHOD method;
 	std::string path;
@@ -46,10 +48,10 @@ struct requestData{
 
 class Server{
 	private:
-		serverConf					conf;
-		std::vector<int>			socket_fds;
+		std::vector<serverConf *>	confs;
+		std::map<int, serverConf>	servers;
 		fd_set						read_fd, write_fd;
-		std::map<int, std::string>	client_requests;
+		std::map<int, requestData>	client_requests;
 		std::map<int, std::string>	client_responses;
 		std::map<int, std::string>	reason_phrases;
 		std::ofstream				database;
@@ -69,13 +71,12 @@ class Server{
 		
 	public:
 		Server();
-		Server(serverConf conf);
 		~Server();
-		int				init();
+		int				init(std::vector<serverConf *> confs);
 		void			run();
 		
 };
 
-std::ostream&	operator<<(std::ostream& os, const serverConf& obj);
+
 
 #endif

@@ -50,25 +50,20 @@ Server::Server(){
 	// std::cout << this->conf << std::endl;
 }
 
-Server::Server(serverConf conf){
-	this->conf = conf;
-	
-	printConfig(this->conf);
-}
-
 Server::~Server(){
 	this->database.close();
 }
 
 
-int	Server::init(){
+int	Server::init(std::vector<serverConf *> confs){
 	struct addrinfo hints;
 	struct addrinfo *res;
+	this->confs = confs;
 
 	if (DEBUG)
-		std::cout << std::endl << "Initializing server" << std::endl << std::endl;
+		std::cout << "\tInitializing server" << std::endl;
 	
-	//Open or Create database
+	//Open or create database used to store post data
 	this->database.open("database.txt", std::ios::out);
 	if (!this->database.is_open()){
 		std::cerr << COLOR_RED << "Error. Unable to open database" << COLOR_RESET << std::endl;
@@ -81,87 +76,73 @@ int	Server::init(){
 	hints.ai_socktype = SOCK_STREAM;
 	hints.ai_flags = AI_PASSIVE;
 
-	for (size_t i = 0; i < this->conf.port_number.size(); i++){
-		int	status = getaddrinfo(
-			this->conf.host.c_str(),
-			this->conf.port_number[i].c_str(),
-			&hints,
-			&res
-		);
-		if (status != 0){
-			std::cerr << COLOR_RED << "Error: " << gai_strerror(status) << COLOR_RESET << std::endl;
-			freeaddrinfo(res);
-			return (0);
-		}	
-		std::cout << COLOR_GREEN << "Get address info success for port " << this->conf.port_number[i] << COLOR_RESET << std::endl;
-		if (res->ai_next != NULL){
-			std::cout << COLOR_YELLOW << "Warning: Multiple address detected. The program will use the first one by default" << COLOR_RESET << std::endl;
-		}
-		if (DEBUG){
-			//TODO : Remove for submission as ntop is not allow
-			char	ip[INET_ADDRSTRLEN];
-			struct sockaddr_in	*ipv4 = reinterpret_cast<struct sockaddr_in *>(res->ai_addr);
-			void 	*addr = &(ipv4->sin_addr);
-			inet_ntop(res->ai_family, addr, ip, sizeof(ip));
-			std::cout << "IP: " << ip << std::endl;
-		}
-		//Create Socket
-		int socket_fd = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
-		if (socket_fd < 0){
-			std::cerr << COLOR_RED << "Error. Unable to create socket for port " << this->conf.port_number[i] << strerror(errno) << std::endl;
-			freeaddrinfo(res);
-			return (0);
-		}
-		std::cout << COLOR_GREEN << "Socket creation sucess for port " << this->conf.port_number[i] << COLOR_RESET << std::endl;
-		// Allow port to be immediately reuse after close
-		int	reuse = 1;
-		if (setsockopt(socket_fd, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse)) < 0){
-			std::cerr << COLOR_RED << "Error. Set socket option error" << strerror(errno) << std::endl;
-			freeaddrinfo(res);
-			return (0);
-		} 
+	for (size_t i = 0; i < this->confs.size(); i ++){
+		serverConf conf = *(this->confs[i]);
+		for (size_t i = 0; i < conf.port_number.size(); i ++){
+			int status = getaddrinfo(conf.host.c_str(), conf.port_number[i].c_str(), &hints, &res);
+			if (status != 0){
+				std::cerr << COLOR_RED << "Error: " << gai_strerror(status) << COLOR_RESET << std::endl;
+				freeaddrinfo(res);
+				return (0);
+			}
+			std::cout << COLOR_GREEN << "Get address info success for port " << conf.host << ":" << conf.port_number[i] << COLOR_RESET << std::endl;
+			
+			if (res->ai_next != NULL)
+				std::cout << COLOR_YELLOW << "Warning: Multiple address detected. The program will only use the first one" << COLOR_RESET << std::endl;
+			
+			//Create Socket
+			int socket_fd = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
+			if (socket_fd < 0){
+				std::cerr << COLOR_RED << "Error. Unable to create socket for port " << conf.port_number[i] << strerror(errno) << std::endl;
+				freeaddrinfo(res);
+				return (0);
+			}
+			std::cout << COLOR_GREEN << "Socket " << socket_fd << " created for port " << conf.port_number[i] << COLOR_RESET << std::endl;
+			this->servers[socket_fd] = conf;
 
-		//Bind Socket
-		if (bind(socket_fd, res->ai_addr, res->ai_addrlen) < 0){
-			std::cerr << COLOR_RED << "Error. Bind failed. " << strerror(errno) << COLOR_RESET << std::endl;
-			freeaddrinfo(res);
-			return (0);
-		}
-		std::cout << COLOR_GREEN << "Socket binding sucess" << COLOR_RESET << std::endl;
-		if (listen(socket_fd, SOMAXCONN) < 0){
-			std::cerr << COLOR_RED << "Error. Listen failed" << strerror(errno) << std::endl;
-			freeaddrinfo(res);
-			return (0);
-		}
-		this->socket_fds.push_back(socket_fd);
-		std::cout << COLOR_GREEN << "Socket listening sucess" << COLOR_RESET << std::endl;
-	}
-	std::cout << COLOR_GREEN << "Server initialization complete" << COLOR_RESET << std::endl;
-	freeaddrinfo(res);
+			//Allow Port Reuse
+			int reuse = 1;
+			if (setsockopt(socket_fd, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse)) < 0){
+				std::cerr << COLOR_RED << "Error. Unable to set socket option for port " << conf.port_number[i] << strerror(errno) << std::endl;
+				freeaddrinfo(res);
+				return (0);
+			}
 
-	if (DEBUG){
-		std::cout << "All socket fd" << std::endl;
-		for (size_t i = 0; i < this->socket_fds.size(); i++)
-			std::cout << this->socket_fds[i] << ", ";
-		std::cout << std::endl;
+			//Bind Socket
+			if (bind(socket_fd, res->ai_addr, res->ai_addrlen) < 0){
+				std::cerr << COLOR_RED << "Error. Unable to bind socket for port " << conf.port_number[i] << strerror(errno) << std::endl;
+				freeaddrinfo(res);
+				return (0);
+			}
+			std::cout << COLOR_GREEN << "Socket " << socket_fd << " binded for port " << conf.port_number[i] << COLOR_RESET << std::endl;
+
+			//Listen Socket
+			if (listen(socket_fd, SOMAXCONN) < 0){
+				std::cerr << COLOR_RED << "Error. Unable to listen socket for port " << conf.port_number[i] << strerror(errno) << std::endl;
+				freeaddrinfo(res);
+				return (0);
+			}
+			std::cout << COLOR_GREEN << "Socket " << socket_fd << " listening for port " << conf.port_number[i] << COLOR_RESET << std::endl;
+			std::cout << COLOR_GREEN << "Server " << conf.host << ":" << conf.port_number[i] << " initialize successfully" << COLOR_RESET << std::endl;
+		}
 	}
-	
+	freeaddrinfo(res);	
 	return (1);
 }
 
 
 void	Server::run(){
-	if (DEBUG)
-		std::cout << std::endl << "Server is running" << std::endl << std::endl;
-	fd_set				read_ready_fd, write_ready_fd;
-	struct timeval				timeout;
+	std::cout << "Server is running" << std::endl;
+	
+	fd_set 			read_ready_fd, write_ready_fd;
+	struct timeval	timeout;
 
 	timeout.tv_sec = 1;
 	timeout.tv_usec = 0;
 	FD_ZERO(&this->read_fd);
 	FD_ZERO(&this->write_fd);
-	for (size_t i = 0;i < this->socket_fds.size(); i++){
-		FD_SET(this->socket_fds[i], &this->read_fd);
+	for (std::map<int, serverConf>::iterator it = this->servers.begin(); it != this->servers.end(); it++){
+		FD_SET(it->first, &this->read_fd);
 	}
 	while (1){
 		memcpy(&read_ready_fd, &this->read_fd, sizeof(fd_set));
@@ -172,47 +153,51 @@ void	Server::run(){
 			std::cout << COLOR_RED << "Error. select failed. " << strerror(errno) << COLOR_RESET << std::endl;
 			return ;
 		}
+
+		//Reading Request
 		for (int i = 0; i < FD_SETSIZE; i++){
 			if (!FD_ISSET(i, &read_ready_fd))
 				continue ;
-			int	is_new_socket = 0;
-			for (size_t fd = 0; fd < this->socket_fds.size(); fd++){
-				if (i == this->socket_fds[fd]){
-					int new_socket = acceptNewConnection(this->socket_fds[fd]);
-					if (DEBUG)
-						std::cout << new_socket << "new client joined at " << this->socket_fds[fd] << std::endl;
-					if (new_socket < 0)
-						continue;
-					FD_SET(new_socket, &this->read_fd);
-					is_new_socket = 1;
-					break ;
-				}
+			int is_new_socket = 0;
+			if (this->servers.find(i) != this->servers.end()){
+				int new_socket = acceptNewConnection(i);
+				if (new_socket < 0)
+					continue ;
+				FD_SET(new_socket, &this->read_fd);
+				is_new_socket = 1;
+				break ;
 			}
 			if (!is_new_socket){
 				handleConnection(i);
 				FD_SET(i, &this->write_fd);
-        		FD_CLR(i, &this->read_fd);
+				FD_CLR(i, &this->read_fd);
 			}
 		}
-		//Write
-		for (int i = 0; i < FD_SETSIZE; i++){
+
+		//Writing Response
+		for(int i = 0; i < FD_SETSIZE; i ++){
 			if (!FD_ISSET(i, &write_ready_fd))
 				continue ;
 			int res = handleRequest(i);
+			res = 200;
 			sendResponse(i, res);
 			FD_CLR(i, &this->write_fd);
+
 		}
 	}
 }
 
 
 int	Server::acceptNewConnection(int socket_fd){
-	int	new_socket = accept(socket_fd, NULL, NULL);
+	int new_socket = accept(socket_fd, NULL, NULL);
 	if (new_socket < 0){
 		std::cout << COLOR_RED << "Error: Accept failed " << strerror(errno) << COLOR_RESET << std::endl;
 		close(socket_fd);
 		return (-1);
 	}
+	this->client_requests[new_socket].server_fd = socket_fd;
+	if (DEBUG)
+		std::cout << "New client joined at " << new_socket << std::endl;
 	fcntl(new_socket, F_SETFL, O_NONBLOCK);
 	return (new_socket);
 }
@@ -236,8 +221,8 @@ void	Server::handleConnection(int socket_fd){
 			close(socket_fd);
 			return ;
 		}
-		this->client_requests[socket_fd].append(buffer, bytes_read);
-		if (checkReceive(this->client_requests[socket_fd]) == 1)
+		this->client_requests[socket_fd].whole_request.append(buffer, bytes_read);
+		if (checkReceive(this->client_requests[socket_fd].whole_request) == 1)
 			return ;
 	}
 }
@@ -247,116 +232,148 @@ void	Server::handleConnection(int socket_fd){
  * Write the response body to client_responses 
  */
 int		Server::handleRequest(int socket_fd){
-	requestData request;
-	
-	request.header = this->client_requests[socket_fd].substr(0, this->client_requests[socket_fd].find("\r\n\r\n"));
-	request.body = this->client_requests[socket_fd].substr(this->client_requests[socket_fd].find("\r\n\r\n") + 4);
-	request.contentLength = this->client_requests[socket_fd].length();
+	std::string header = this->client_requests[socket_fd].whole_request.substr(0, this->client_requests[socket_fd].whole_request.find("\r\n\r\n"));
+	std::string body = this->client_requests[socket_fd].whole_request.substr(this->client_requests[socket_fd].whole_request.find("\r\n\r\n") + 4);
+	int contentLength = this->client_requests[socket_fd].whole_request.length();
+	this->client_requests[socket_fd].header = header;
+	this->client_requests[socket_fd].body = body;
+	this->client_requests[socket_fd].contentLength = contentLength;
 
-	int pos = request.header.find(' ');
-	std::string method = request.header.substr(0, pos);
+	int pos = header.find(' ');
+	std::string method = header.substr(0, pos);
 	pos ++;
-	std::string path = request.header.substr(pos, request.header.find(' ', pos) - pos);
+	std::string path = header.substr(pos, header.find(' ', pos) - pos);
 	if (DEBUG){
-		std::cout << "Request Header: " << std::endl << request.header << std::endl;
-		std::cout << "Request Body: " << std::endl << request.body << std::endl;
+		std::cout << "Request Header: " << std::endl << header << std::endl;
+		std::cout << "Request Body: " << std::endl << body << std::endl;
 		std::cout << "Method: " << method << std::endl;
-		std::cout << "path: " << path << std::endl;
-		std::cout << this->conf.locations[path]->root << std::endl;
-		std::cout << this->conf.locations[path]->index << std::endl;
-	}
-	//Check if request can be handled
-	if (this->conf.locations.find(path) == this->conf.locations.end()){
-		std::cout << COLOR_RED <<  "Error. Path: " << path <<  " not found"  << COLOR_RESET << std::endl;
-		this->client_responses[socket_fd] = this->handleError(404);
-		return (404);
-	}
-	//Print limit except here
-	int request_method = checkMethod(method, this->conf.locations[path]->limit_except);
-	if (request_method == -1){
-		std::cout << COLOR_RED << "Error. Method " << method << " is not allowed"  << COLOR_RESET << std::endl;
-		this->client_responses[socket_fd] = this->handleError(405);
-		return (405);
+		std::cout << "Path: " << path << std::endl;
+		int server_fd = this->client_requests[socket_fd].server_fd;
+		std::cout << "Path Root: " << this->servers[server_fd].locations[path]->root << std::endl;
+		std::cout << "Path Index: " << this->servers[server_fd].locations[path]->index << std::endl;
 	}
 
-	//TODO: handle when no index but have autoindex on
-	std::string full_path = this->conf.locations[path]->root + "/" + this->conf.locations[path]->index;
-	std::ifstream file(full_path.c_str());
-	if (!file.is_open()){
-		std::cout << COLOR_RED << "Error. File not found. " << full_path << COLOR_RESET << std::endl;
-		this->client_responses[socket_fd] = this->handleError(404);
-	}
+	// int server_fd = this->client_requests[socket_fd].server_fd;
+	// std::cout << "Config " << std::endl;
+	// std::cout << this->servers[server_fd] << std::endl;
+	return 1;
+
+	// int pos = request.header.find(' ');
+	// std::string method = request.header.substr(0, pos);
+	// pos ++;
+	// std::string path = request.header.substr(pos, request.header.find(' ', pos) - pos);
+	// if (DEBUG){
+	// 	std::cout << "Request Header: " << std::endl << request.header << std::endl;
+	// 	std::cout << "Request Body: " << std::endl << request.body << std::endl;
+	// 	std::cout << "Method: " << method << std::endl;
+	// 	std::cout << "path: " << path << std::endl;
+	// 	std::cout << this->conf.locations[path]->root << std::endl;
+	// 	std::cout << this->conf.locations[path]->index << std::endl;
+	// }
+	// //Check if request can be handled
+	// if (this->conf.locations.find(path) == this->conf.locations.end()){
+	// 	std::cout << COLOR_RED <<  "Error. Path: " << path <<  " not found"  << COLOR_RESET << std::endl;
+	// 	this->client_responses[socket_fd] = this->handleError(404);
+	// 	return (404);
+	// }
+	// //Print limit except here
+	// int request_method = checkMethod(method, this->conf.locations[path]->limit_except);
+	// if (request_method == -1){
+	// 	std::cout << COLOR_RED << "Error. Method " << method << " is not allowed"  << COLOR_RESET << std::endl;
+	// 	this->client_responses[socket_fd] = this->handleError(405);
+	// 	return (405);
+	// }
+
+	// //TODO: handle when no index but have autoindex on
+	// std::string full_path = this->conf.locations[path]->root + "/" + this->conf.locations[path]->index;
+	// std::ifstream file(full_path.c_str());
+	// if (!file.is_open()){
+	// 	std::cout << COLOR_RED << "Error. File not found. " << full_path << COLOR_RESET << std::endl;
+	// 	this->client_responses[socket_fd] = this->handleError(404);
+	// }
 	
-	typedef std::string (Server::*func)(requestData &,std::ifstream &);
-	METHOD method_enum = static_cast<METHOD>(request_method);
-	func methods[METHOD_COUNT] = {&Server::handleGet, &Server::handlePost, &Server::handlePut, &Server::handleHead, &Server::handleDelete};
-	this->client_responses[socket_fd] = (this->*methods[method_enum])(request, file);
-	// std::string body = (this->*methods[method_enum])(file);
-	//get body
-	//add content length
-	return (200);
+	// typedef std::string (Server::*func)(requestData &,std::ifstream &);
+	// METHOD method_enum = static_cast<METHOD>(request_method);
+	// func methods[METHOD_COUNT] = {&Server::handleGet, &Server::handlePost, &Server::handlePut, &Server::handleHead, &Server::handleDelete};
+	// this->client_responses[socket_fd] = (this->*methods[method_enum])(request, file);
+	// // std::string body = (this->*methods[method_enum])(file);
+	// //get body
+	// //add content length
+	// return (200);
 }
 
 /**
  * @brief Add header to the response body and sent it
  */
 void	Server::sendResponse(int socket_fd, int status_code){
-	std::string res = "HTTP/1.1 ";
-	res += intToString(status_code);
-	res += " ";
-	res += this->reason_phrases[status_code];
-	res += "\r\n";
-	res += "Content-Type: text/html\r\n";
-	res += "Content-Length: ";
-	res += intToString(this->client_responses[socket_fd].length());
-	res += "\r\n\r\n";
-	res += this->client_responses[socket_fd];
+	(void) status_code;
+	// std::string res = "HTTP/1.1 ";
+	// res += intToString(status_code);
+	// res += " ";
+	// res += this->reason_phrases[status_code];
+	// res += "\r\n";
+	// res += "Content-Type: text/html\r\n";
+	// res += "Content-Length: ";
+	// res += intToString(this->client_responses[socket_fd].length());
+	// res += "\r\n\r\n";
+	// res += this->client_responses[socket_fd]
+
+	std::string res = "HTTP/1.1 200 OK\r\n"
+							"Content-Type: text/html\r\n"
+							"Content-Length: 5\r\n"
+							"\r\n"
+							"Hello";
 	
 	int byteSend = send(socket_fd, res.c_str(), res.length(), 0);
 	if (byteSend < 0)
 		std::cout << COLOR_RED << "Error. Send failed at " << socket_fd << strerror(errno) << COLOR_RESET << std::endl;
 	this->client_requests.erase(socket_fd);
 	this->client_responses.erase(socket_fd);
+	std::cout << "sent to " << socket_fd << std::endl;
 	close(socket_fd);
 }
 
 int	Server::checkReceive(std::string &msg){
-	std::string header_end = "\r\n\r\n";
-	if (msg.find(header_end) == std::string::npos)
-		return (1);
-	if (msg.find("Transfer-Encoding: chunked") != std::string::npos){
-		if (msg.find("0\r\n\r\n") == std::string::npos)
-			return (0);
-	}
-	if (msg.find("Content-Length: ") != std::string::npos){
-		size_t	value_pos = msg.find("Content-Length: ");
-		size_t	end_pos = msg.find("\r\n", value_pos);
-		std::string content_length = msg.substr(value_pos + 16, end_pos - value_pos - 16);
-		std::stringstream ss(content_length);
-		size_t length;
-		ss >> length;
-		std::string body = msg.substr(msg.find("\r\n\r\n") + 4);
-		return (body.length() == length);
-	}
-	return (1);
+	(void) msg;
+	return 1;
+	// std::string header_end = "\r\n\r\n";
+	// if (msg.find(header_end) == std::string::npos)
+	// 	return (1);
+	// if (msg.find("Transfer-Encoding: chunked") != std::string::npos){
+	// 	if (msg.find("0\r\n\r\n") == std::string::npos)
+	// 		return (0);
+	// }
+	// if (msg.find("Content-Length: ") != std::string::npos){
+	// 	size_t	value_pos = msg.find("Content-Length: ");
+	// 	size_t	end_pos = msg.find("\r\n", value_pos);
+	// 	std::string content_length = msg.substr(value_pos + 16, end_pos - value_pos - 16);
+	// 	std::stringstream ss(content_length);
+	// 	size_t length;
+	// 	ss >> length;
+	// 	std::string body = msg.substr(msg.find("\r\n\r\n") + 4);
+	// 	return (body.length() == length);
+	// }
+	// return (1);
 }
 
 std::string Server::handleError(int status_code){
-	std::ifstream input;
-	std::stringstream buffer;
-
-	std::string line;
-	if (status_code == 404){
-		input.open(this->conf.error_pages[404].c_str());
-		buffer << input.rdbuf();
-		return (buffer.str());
-	}
-	else if (status_code == 405){
-		input.open(this->conf.error_pages[405].c_str());
-		buffer << input.rdbuf();
-		return (buffer.str());
-	}
+	(void) status_code;
 	return ("");
+	// std::ifstream input;
+	// std::stringstream buffer;
+
+	// std::string line;
+	// if (status_code == 404){
+	// 	input.open(this->conf.error_pages[404].c_str());
+	// 	buffer << input.rdbuf();
+	// 	return (buffer.str());
+	// }
+	// else if (status_code == 405){
+	// 	input.open(this->conf.error_pages[405].c_str());
+	// 	buffer << input.rdbuf();
+	// 	return (buffer.str());
+	// }
+	// return ("");
 }
 
 /**
@@ -430,13 +447,4 @@ std::string	Server::handleDelete(requestData &request, std::ifstream &file){
 							"Content-Length: " + intToString(content.length()) + "\r\n"
 							"\r\n" + content;
 	return (res);
-}
-
-std::ostream&	operator<<(std::ostream& os, const serverConf& obj){
-	os << "Host name: "  << obj.host << std::endl;
-	for (size_t i = 0; i < obj.port_number.size(); i++){
-		os << "Port number: " << obj.port_number[i] <<std::endl;
-	}
-	os << "End of Config File";
-	return (os);
 }

@@ -16,7 +16,6 @@
 # include "Tokenizer.hpp"
 # include "utils.hpp"
 
-# include <vector>
 # include <sstream>
 
 class ConfigParser{
@@ -59,8 +58,8 @@ class ConfigParser{
 		int initDefaultErrorpages();
 		int	parse(std::string &path);
 		int validateConfig();
-		void printConf();
-		serverConf getConfig(size_t i);
+		void printConfs();
+		std::vector<serverConf *> getConfigs();
 		size_t getServerCount();
 };
 

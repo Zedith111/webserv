@@ -19,7 +19,6 @@ ConfigParser::ConfigParser(){
 }
 
 ConfigParser::~ConfigParser(){
-	std::cout << "Config Parser Destructor called" << std::endl;
 	for (size_t i = 0; i < this->server_confs.size(); i++){
 		serverConf *current = this->server_confs[i];
 		if (current != NULL){
@@ -87,7 +86,7 @@ int	ConfigParser::parseToken(){
 		std::cout << COLOR_RED << "Error. Block not enclosed properly" << COLOR_RESET << std::endl;
 		return (0);
 	}
-	std::cout << "Finish" << std::endl;
+	std::cout << COLOR_GREEN << "Parsing Finish" << COLOR_RESET << std::endl;
 	return (1);
 }
 
@@ -143,6 +142,7 @@ int	ConfigParser::parseLocation(size_t &current, int indent_level, serverConf *c
 	}
 
 	locationInfo *new_location = new locationInfo;
+	new_location->autoindex = 0;
 	current += 1;
 	std::string route = this->tokens[current];
 
@@ -372,40 +372,17 @@ int ConfigParser::checkEnding(size_t &current){
 	return (1); 
 }
 
-serverConf ConfigParser::getConfig(size_t i){
-	return (*(this->server_confs[i]));
+std::vector<serverConf *> ConfigParser::getConfigs(){
+	return (this->server_confs);
 }
 
 size_t ConfigParser::getServerCount(){
 	return (this->server_confs.size());
 }
 
-void	ConfigParser::printConf(){
-	for (size_t i = 0; i < this->server_confs.size(); i++){
-		std::cout << "Host: " << this->server_confs[i]->host << std::endl;
-		std::cout << "Port: " ;
-		for (size_t j=0; j < this->server_confs[i]->port_number.size(); j++){
-			std::cout << this->server_confs[i]->port_number[j] << ", ";
-		}
-		std::cout << std::endl;
-		std::cout << "Server Name: " << this->server_confs[i]->server_name << std::endl;
-		std::cout << "Root: " << this->server_confs[i]->root << std::endl;
-		std::cout << "Error Pages: " << std::endl;
-		std::map<int, std::string>::iterator error_iter;
-		for(error_iter=this->server_confs[i]->error_pages.begin(); error_iter!=this->server_confs[i]->error_pages.end(); ++error_iter){
-			std::cout << "\t" << error_iter->first << ": " << error_iter->second << std::endl;
-		}
-		std::map<std::string, locationInfo *>::iterator loc_iter;
-		for(loc_iter=this->server_confs[i]->locations.begin(); loc_iter!=this->server_confs[i]->locations.end(); ++loc_iter){
-			std::cout << "Route: " << loc_iter->first << std::endl;
-			std::cout << "\tRoot: " << loc_iter->second->root << std::endl;
-			std::cout << "\tIndex: " << loc_iter->second->index << std::endl;
-			std::cout << "\tAutoindex: " << loc_iter->second->autoindex << std::endl;
-			std::cout << "\tLimit Except: ";
-			for (size_t j=0; j < loc_iter->second->limit_except.size(); j++){
-				std::cout << loc_iter->second->limit_except[j] << ", ";
-			}
-			std::cout << std::endl;
-		}
+void	ConfigParser::printConfs(){
+	for (size_t i = 0; i < this->server_confs.size(); i ++){
+		serverConf current = *(this->server_confs[i]);
+		std::cout << current << std::endl;
 	}
 }

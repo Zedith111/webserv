@@ -1,11 +1,10 @@
 valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes  --verbose     
      --log-file=valgrind-out.txt          ./webserv config/test.conf
+
+Check nginx action with directory
+Check leak as change to vector
     
 # Complete parser
-    check can parse second server
-    Check inproper "{" and "}" 
-    Check root has "/" at the end, if yes, delete it
-    add "./" to the beginning of root/aboslute or relative path
     location block
         limit except
     If no limit except, set method to all
@@ -22,6 +21,8 @@ valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes  --verbose
     if no limit_except present, dont check
     in no index present, search for file
     check if route ha multiple "/"
+    client_max_limit_body_size
+    unkonwon request
     when passing route, check for root directory, if have index variable
     Handle /fav.ico
     Check auto index and index which will be dominant
