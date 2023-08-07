@@ -319,8 +319,11 @@ int	ConfigParser::parseLimitExcept(size_t &current, locationInfo *current_loc){
 }
 
 int ConfigParser::initDefaultErrorpages(){
+	this->default_error_pages[403] = "./default_error_pages/403.html";
 	this->default_error_pages[404] = "./default_error_pages/404.html";
 	this->default_error_pages[405] = "./default_error_pages/405.html";
+	this->default_error_pages[500] = "./default_error_pages/500.html";
+	this->default_error_pages[501] = "./default_error_pages/501.html";
 
 	std::map<int, std::string>::iterator it;
 	for (it = this->default_error_pages.begin(); it != this->default_error_pages.end(); it++){
@@ -339,7 +342,7 @@ int ConfigParser::initDefaultErrorpages(){
 }
 
 void ConfigParser::addErrorpages(serverConf *current_conf){
-	int all_codes[] = {404, 405};
+	int all_codes[] = {403, 404, 405};
 	const int codes_size = sizeof(all_codes) / sizeof(int);
 
 	for (int i = 0; i < codes_size; i++){
@@ -359,6 +362,9 @@ int ConfigParser::validateLocationRoot(serverConf *current_conf){
 				return (0);
 			}
 			it->second->root = full_path;
+		}
+		else{
+			it->second->root = current_conf->root;
 		}
 	}
 	return (1);

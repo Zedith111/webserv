@@ -24,8 +24,8 @@ class ConfigParser{
 		std::string					delimiter;
 		std::string					special_char;
 		std::vector<std::string>	tokens;
-		std::vector<serverConf*>		server_confs;
-		std::map<int, std::string> default_error_pages;
+		std::vector<serverConf*>	server_confs;
+		std::map<int, std::string> 	default_error_pages;
 
 
 		int	parseToken();

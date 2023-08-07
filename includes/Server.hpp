@@ -13,35 +13,23 @@
 #ifndef SERVER_HPP
 # define SERVER_HPP
 
+# include "utils.hpp"
 # include "Webserv.hpp"
 # include "serverUtils.hpp"
-# include "utils.hpp"
+
 # include <vector>
 # include <sys/select.h>
 
 # define BUFFER_SIZE 1024
 
-/**
- * choose port and host(host refer to ip address)
- * server_name (default to localhost)
- * if multiple server use same port and host. The first will be used
- * default error page
- * limit client body size
- * set up route
-//  */
-// struct serverConf{
-// 	std::string hostName;
-// 	std::string	port;
-// 	int			totalPort;
-// 	std::vector<int>	portNumber;
-// };
-
 struct requestData{
 	int server_fd;
+	int status_code;
 	std::string whole_request;
 	std::string header;
 	METHOD method;
 	std::string path;
+	std::string file_path;
 	std::string body;
 	std::string contentLength;
 };
@@ -58,16 +46,18 @@ class Server{
 		
 		int				acceptNewConnection(int socket_fd);
 		void			handleConnection(int socket_fd);
-		int				handleRequest(int socket_fd);
-		void			sendResponse(int socket_fd, int status_code);
+		void			handleRequest(int socket_fd);
+		void			sendResponse(int socket_fd);
 		int				checkReceive(std::string &msg);
-		std::string		handleError(int status_code);
+		std::string		handleError(int status_code, int server_fd);
 
-		std::string		handleGet(requestData &request, std::ifstream &file);
-		std::string		handlePost(requestData &request, std::ifstream &file);
-		std::string		handlePut(requestData &request, std::ifstream &file);
-		std::string		handleHead(requestData &request, std::ifstream &file);
-		std::string		handleDelete(requestData &request, std::ifstream &file);
+		std::string		handleGet(requestData &request, locationInfo &location);
+		std::string		handlePost(requestData &request, locationInfo &location);
+		std::string		handlePut(requestData &request, locationInfo &location);
+		std::string		handleHead(requestData &request, locationInfo &location);
+		std::string		handleDelete(requestData &request, locationInfo &location);
+
+		std::string		checkDirectoryRoute(int server_fd, std::string &path);
 		
 	public:
 		Server();

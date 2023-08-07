@@ -5,18 +5,14 @@ Check nginx action with directory
 Check leak as change to vector
     
 # Complete parser
-    location block
-        limit except
     If no limit except, set method to all
+    server name parameter
     after parse, add check method(error page can open, same host and port, use first one)
 # Handle request
-    First check if matching route, if yes, search for index, if no, check autoindex
-    Then check if directory route
-    First checki if is specific file, if yes then send the specific file, 
-    then check for index, after that autoindex
-    Default search for index first. If not found, then handle other
-    Split the route, check mataching location block(if has "/" behind, then is a directory route)
-        if is directory route, split the route, and find respective file
+    Directory route
+        index will override autoindex
+        if no autoindex, return forbidden
+
     if got index, use index.html, if no index, 
     if no limit_except present, dont check
     in no index present, search for file

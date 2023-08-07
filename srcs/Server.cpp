@@ -12,49 +12,28 @@
 
 #include "Server.hpp"
 
+/**
+ * @brief Server object constructor. Will initialize following
+ * 1. Reason code and reason phrase 
+ */
 Server::Server(){
-	//Configure port
-	// this->conf.host = "127.0.0.1";
-	// this->conf.port_number.push_back("8080");
-	// this->conf.port_number.push_back("8081");
-	// this->conf.total_port = 2;
-
-	// //Add html
-	// locationInfo base;
-	// base.root = "./www";
-	// base.index = "index.html";
-	// base.autoindex = false;
-	// base.limit_except.push_back("GET");
-	// this->conf.locations["/"] = &base;
-	
-
-	// locationInfo test;
-	// test.root = "./www";
-	// test.index = "post.html";
-	// test.autoindex = false;
-	// test.limit_except.push_back("GET");
-	// test.limit_except.push_back("POST");
-	// this->conf.locations["/post"] = &test;
-
-	// //Add error page
-	// this->conf.error_pages[404] = "./www/error/404.html";
-	// this->conf.error_pages[405] = "./www/error/405.html";
-
 	// //Add reason phrase
-	// this->reason_phrases[200] = "OK";
-	// this->reason_phrases[404] = "Not Found";
-	// this->reason_phrases[405] = "Method Not Allowed";
-
-
-	// std::cout << "Current Config" << std::endl;
-	// std::cout << this->conf << std::endl;
+	this->reason_phrases[200] = "OK";
+	this->reason_phrases[403] = "Forbidden";
+	this->reason_phrases[404] = "Not Found";
+	this->reason_phrases[405] = "Method Not Allowed";
+	this->reason_phrases[500] = "Internal Server Error";
+	this->reason_phrases[501] = "Not Implemented";
 }
 
 Server::~Server(){
 	this->database.close();
 }
 
-
+/**
+ * @brief Server initialization function. Loop through all server configuration and initialize them.
+ * Return 0 if any error occur, 1 if success
+ */
 int	Server::init(std::vector<serverConf *> confs){
 	struct addrinfo hints;
 	struct addrinfo *res;
@@ -130,7 +109,9 @@ int	Server::init(std::vector<serverConf *> confs){
 	return (1);
 }
 
-
+/**
+ * @brief Server run function. Will run a infinite loop to accept connection and handle request
+ */
 void	Server::run(){
 	std::cout << "Server is running" << std::endl;
 	
@@ -178,16 +159,17 @@ void	Server::run(){
 		for(int i = 0; i < FD_SETSIZE; i ++){
 			if (!FD_ISSET(i, &write_ready_fd))
 				continue ;
-			int res = handleRequest(i);
-			res = 200;
-			sendResponse(i, res);
+			handleRequest(i);
+			sendResponse(i);
 			FD_CLR(i, &this->write_fd);
 
 		}
 	}
 }
 
-
+/**
+ * @brief Accept new connection and map the client to correct server
+ */
 int	Server::acceptNewConnection(int socket_fd){
 	int new_socket = accept(socket_fd, NULL, NULL);
 	if (new_socket < 0){
@@ -202,6 +184,9 @@ int	Server::acceptNewConnection(int socket_fd){
 	return (new_socket);
 }
 
+/**
+ * @brief Receive the message sent by client
+ */
 void	Server::handleConnection(int socket_fd){
 	int		bytes_read;
 	char	buffer[BUFFER_SIZE];
@@ -217,6 +202,7 @@ void	Server::handleConnection(int socket_fd){
 		}
 		if (bytes_read < 0){
 			std::cout << "Error. recv failed at " << socket_fd << std::endl;
+			//TODP: sent 500
 			this->client_requests.erase(socket_fd);
 			close(socket_fd);
 			return ;
@@ -229,9 +215,9 @@ void	Server::handleConnection(int socket_fd){
 
 /**
  * @brief Evaluate the request header and body.
- * Write the response body to client_responses 
+ * Write the response body to client_responses
  */
-int		Server::handleRequest(int socket_fd){
+void		Server::handleRequest(int socket_fd){
 	std::string header = this->client_requests[socket_fd].whole_request.substr(0, this->client_requests[socket_fd].whole_request.find("\r\n\r\n"));
 	std::string body = this->client_requests[socket_fd].whole_request.substr(this->client_requests[socket_fd].whole_request.find("\r\n\r\n") + 4);
 	int contentLength = this->client_requests[socket_fd].whole_request.length();
@@ -243,86 +229,76 @@ int		Server::handleRequest(int socket_fd){
 	std::string method = header.substr(0, pos);
 	pos ++;
 	std::string path = header.substr(pos, header.find(' ', pos) - pos);
+	int	server_fd = this->client_requests[socket_fd].server_fd;
 	if (DEBUG){
 		std::cout << "Request Header: " << std::endl << header << std::endl;
 		std::cout << "Request Body: " << std::endl << body << std::endl;
 		std::cout << "Method: " << method << std::endl;
 		std::cout << "Path: " << path << std::endl;
-		int server_fd = this->client_requests[socket_fd].server_fd;
 		std::cout << "Path Root: " << this->servers[server_fd].locations[path]->root << std::endl;
 		std::cout << "Path Index: " << this->servers[server_fd].locations[path]->index << std::endl;
 	}
 
-	// int server_fd = this->client_requests[socket_fd].server_fd;
-	// std::cout << "Config " << std::endl;
-	// std::cout << this->servers[server_fd] << std::endl;
-	return 1;
-
-	// int pos = request.header.find(' ');
-	// std::string method = request.header.substr(0, pos);
-	// pos ++;
-	// std::string path = request.header.substr(pos, request.header.find(' ', pos) - pos);
-	// if (DEBUG){
-	// 	std::cout << "Request Header: " << std::endl << request.header << std::endl;
-	// 	std::cout << "Request Body: " << std::endl << request.body << std::endl;
-	// 	std::cout << "Method: " << method << std::endl;
-	// 	std::cout << "path: " << path << std::endl;
-	// 	std::cout << this->conf.locations[path]->root << std::endl;
-	// 	std::cout << this->conf.locations[path]->index << std::endl;
-	// }
-	// //Check if request can be handled
-	// if (this->conf.locations.find(path) == this->conf.locations.end()){
-	// 	std::cout << COLOR_RED <<  "Error. Path: " << path <<  " not found"  << COLOR_RESET << std::endl;
-	// 	this->client_responses[socket_fd] = this->handleError(404);
-	// 	return (404);
-	// }
-	// //Print limit except here
-	// int request_method = checkMethod(method, this->conf.locations[path]->limit_except);
-	// if (request_method == -1){
-	// 	std::cout << COLOR_RED << "Error. Method " << method << " is not allowed"  << COLOR_RESET << std::endl;
-	// 	this->client_responses[socket_fd] = this->handleError(405);
-	// 	return (405);
-	// }
-
-	// //TODO: handle when no index but have autoindex on
-	// std::string full_path = this->conf.locations[path]->root + "/" + this->conf.locations[path]->index;
-	// std::ifstream file(full_path.c_str());
-	// if (!file.is_open()){
-	// 	std::cout << COLOR_RED << "Error. File not found. " << full_path << COLOR_RESET << std::endl;
-	// 	this->client_responses[socket_fd] = this->handleError(404);
-	// }
+	//Check if the path is valide. Will perform two check
+	//	First check for the path is exact match with what present in the location
+	//	If no, check for prefix match
+	//If not found, return 404
+	if (this->servers[server_fd].locations.find(path) == this->servers[server_fd].locations.end()){
+		std::string file_path = checkDirectoryRoute(server_fd, path);
+		if (file_path.empty()){
+			std::cout << COLOR_RED <<  "Error. Path: " << path <<  " not found"  << COLOR_RESET << std::endl;
+			this->client_responses[socket_fd] = this->handleError(404, this->client_requests[socket_fd].server_fd);
+			this->client_requests[socket_fd].status_code = 404;
+			return ;
+		}
+		else
+			this->client_requests[socket_fd].file_path = file_path;
+	}
+	//Check if Method can be handle
+	METHOD request_method = getMethod(method, this->servers[server_fd].locations[path]->limit_except);
+	int method_int = static_cast<int>(request_method);
+	if (method_int < 0){
+		if (method_int == -2){
+			std::cout << COLOR_RED << "Error. Method " << method << " is not allowed"  << COLOR_RESET << std::endl;
+			this->client_responses[socket_fd] = this->handleError(405, this->client_requests[socket_fd].server_fd);
+			this->client_requests[socket_fd].status_code = 405;
+			return ;
+		}
+		if (method_int == -1){
+			std::cout << COLOR_RED << "Error. Unknown method. " << method << COLOR_RESET << std::endl;
+			this->client_responses[socket_fd] = this->handleError(501, this->client_requests[socket_fd].server_fd);
+			this->client_requests[socket_fd].status_code = 501;
+			return ;
+		}
+	}
 	
-	// typedef std::string (Server::*func)(requestData &,std::ifstream &);
-	// METHOD method_enum = static_cast<METHOD>(request_method);
-	// func methods[METHOD_COUNT] = {&Server::handleGet, &Server::handlePost, &Server::handlePut, &Server::handleHead, &Server::handleDelete};
-	// this->client_responses[socket_fd] = (this->*methods[method_enum])(request, file);
-	// // std::string body = (this->*methods[method_enum])(file);
-	// //get body
-	// //add content length
-	// return (200);
+	this->client_requests[socket_fd].status_code = 200;
+	//If location has no index and autoindex is on, run autoindex
+	if (this->servers[server_fd].locations[path]->index.empty() && this->servers[server_fd].locations[path]->autoindex == true){
+		//TODO: handle autoindex
+		return ;
+	}
+	typedef std::string (Server::*func)(requestData &, locationInfo &);
+	func methods[METHOD_COUNT] = {&Server::handleGet, &Server::handlePost, &Server::handlePut, &Server::handleHead, &Server::handleDelete};
+	this->client_responses[socket_fd] = (this->*methods[this->client_requests[socket_fd].method])
+											(this->client_requests[socket_fd], *(this->servers[server_fd].locations[path]));
 }
 
 /**
  * @brief Add header to the response body and sent it
  */
-void	Server::sendResponse(int socket_fd, int status_code){
-	(void) status_code;
-	// std::string res = "HTTP/1.1 ";
-	// res += intToString(status_code);
-	// res += " ";
-	// res += this->reason_phrases[status_code];
-	// res += "\r\n";
-	// res += "Content-Type: text/html\r\n";
-	// res += "Content-Length: ";
-	// res += intToString(this->client_responses[socket_fd].length());
-	// res += "\r\n\r\n";
-	// res += this->client_responses[socket_fd]
-
-	std::string res = "HTTP/1.1 200 OK\r\n"
-							"Content-Type: text/html\r\n"
-							"Content-Length: 5\r\n"
-							"\r\n"
-							"Hello";
+void	Server::sendResponse(int socket_fd){
+	int status_code = this->client_requests[socket_fd].status_code;
+	std::string res = "HTTP/1.1 ";
+	res += intToString(status_code);
+	res += " ";
+	res += this->reason_phrases[status_code];
+	res += "\r\n";
+	res += "Content-Type: text/html\r\n";
+	res += "Content-Length: ";
+	res += intToString(this->client_responses[socket_fd].length());
+	res += "\r\n\r\n";
+	res += this->client_responses[socket_fd];
 	
 	int byteSend = send(socket_fd, res.c_str(), res.length(), 0);
 	if (byteSend < 0)
@@ -333,63 +309,67 @@ void	Server::sendResponse(int socket_fd, int status_code){
 	close(socket_fd);
 }
 
+/**
+ * @brief Check that all the data has been received
+ */
 int	Server::checkReceive(std::string &msg){
-	(void) msg;
-	return 1;
-	// std::string header_end = "\r\n\r\n";
-	// if (msg.find(header_end) == std::string::npos)
-	// 	return (1);
-	// if (msg.find("Transfer-Encoding: chunked") != std::string::npos){
-	// 	if (msg.find("0\r\n\r\n") == std::string::npos)
-	// 		return (0);
-	// }
-	// if (msg.find("Content-Length: ") != std::string::npos){
-	// 	size_t	value_pos = msg.find("Content-Length: ");
-	// 	size_t	end_pos = msg.find("\r\n", value_pos);
-	// 	std::string content_length = msg.substr(value_pos + 16, end_pos - value_pos - 16);
-	// 	std::stringstream ss(content_length);
-	// 	size_t length;
-	// 	ss >> length;
-	// 	std::string body = msg.substr(msg.find("\r\n\r\n") + 4);
-	// 	return (body.length() == length);
-	// }
-	// return (1);
+	std::string header_end = "\r\n\r\n";
+	if (msg.find(header_end) == std::string::npos)
+		return (1);
+	if (msg.find("Transfer-Encoding: chunked") != std::string::npos){
+		if (msg.find("0\r\n\r\n") == std::string::npos)
+			return (0);
+	}
+	if (msg.find("Content-Length: ") != std::string::npos){
+		size_t	value_pos = msg.find("Content-Length: ");
+		size_t	end_pos = msg.find("\r\n", value_pos);
+		std::string content_length = msg.substr(value_pos + 16, end_pos - value_pos - 16);
+		std::stringstream ss(content_length);
+		size_t length;
+		ss >> length;
+		std::string body = msg.substr(msg.find("\r\n\r\n") + 4);
+		return (body.length() == length);
+	}
+	return (1);
 }
 
-std::string Server::handleError(int status_code){
-	(void) status_code;
-	return ("");
-	// std::ifstream input;
-	// std::stringstream buffer;
-
-	// std::string line;
-	// if (status_code == 404){
-	// 	input.open(this->conf.error_pages[404].c_str());
-	// 	buffer << input.rdbuf();
-	// 	return (buffer.str());
-	// }
-	// else if (status_code == 405){
-	// 	input.open(this->conf.error_pages[405].c_str());
-	// 	buffer << input.rdbuf();
-	// 	return (buffer.str());
-	// }
-	// return ("");
+std::string Server::handleError(int status_code, int server_fd){
+	serverConf conf = this->servers[server_fd];
+	std::string res = conf.error_pages[status_code];
+	return (res);
 }
 
 /**
  * @brief Read the file path of a target location and return the body of response
  */
 //Input parameter is request data and location info struct
-std::string	Server::handleGet(requestData &request, std::ifstream &file){
+std::string	Server::handleGet(requestData &request, locationInfo &location){
+	// std::cout << "handle get" << std::endl;
+	// std::cout << "index: " << location.index << std::endl;
+	// std::cout << "root: " << location.root << std::endl;
+	//open file
+	std::string file_path = location.root + "/" + location.index;
+	std::ifstream file(file_path.c_str());
+	if (!file.is_open()){
+		std::cout << COLOR_RED << "Error. File not found. " << file_path << COLOR_RESET << std::endl;
+		request.status_code = 404;
+		return ("");
+	}
+	// std::string full_path = this->conf.locations[path]->root + "/" + this->conf.locations[path]->index;
+	// std::ifstream file(full_path.c_str());
+	// if (!file.is_open()){
+	// 	std::cout << COLOR_RED << "Error. File not found. " << full_path << COLOR_RESET << std::endl;
+	// 	this->client_responses[socket_fd] = this->handleError(404);
+	// }
 	(void)request;
-	std::stringstream buffer;
-	buffer << file.rdbuf();
-	std::string content = buffer.str();
-	return (content);
+	// std::stringstream buffer;
+	// buffer << file.rdbuf();
+	// std::string content = buffer.str();
+	return ("");
 }
 
-std::string	Server::handlePost(requestData &request, std::ifstream &file){
-	(void)file;
+std::string	Server::handlePost(requestData &request, locationInfo &location){
+	(void)location;
 	// std::string content = request.header.find
 	std::string line;
 	std::istringstream iss(request.header);
@@ -409,9 +389,8 @@ std::string	Server::handlePost(requestData &request, std::ifstream &file){
 	return ("");
 }
 
-std::string	Server::handlePut(requestData &request, std::ifstream &file){
-	(void)request;
-	(void)file;
+std::string	Server::handlePut(requestData &request, locationInfo &location){
+	(void)request;(void)location;
 	// std::stringstream buffer;
 	// buffer << file.rdbuf();
 	// std::string content = buffer.str();
@@ -423,28 +402,49 @@ std::string	Server::handlePut(requestData &request, std::ifstream &file){
 	return ("");
 }
 
-std::string	Server::handleHead(requestData &request, std::ifstream &file){
-	(void)request;
+std::string	Server::handleHead(requestData &request, locationInfo &location){
+	(void)request;(void)location;
 	std::stringstream buffer;
-	buffer << file.rdbuf();
-	std::string content = buffer.str();
+	// buffer << file.rdbuf();
+	// std::string content = buffer.str();
 
-	std::string res = "HTTP/1.1 200 OK\r\n"
-							"Content-Type: text/html\r\n"
-							"Content-Length: " + intToString(content.length()) + "\r\n"
-							"\r\n" + content;
-	return (res);
+	// std::string res = "HTTP/1.1 200 OK\r\n"
+	// 						"Content-Type: text/html\r\n"
+	// 						"Content-Length: " + intToString(content.length()) + "\r\n"
+	// 						"\r\n" + content;
+	// return (res);
+	return ("");
 }
 
-std::string	Server::handleDelete(requestData &request, std::ifstream &file){
-	(void)request;
-	std::stringstream buffer;
-	buffer << file.rdbuf();
-	std::string content = buffer.str();
+std::string	Server::handleDelete(requestData &request, locationInfo &location){
+	(void)request;(void)location;
+	// std::stringstream buffer;
+	// buffer << file.rdbuf();
+	// std::string content = buffer.str();
 
-	std::string res = "HTTP/1.1 200 OK\r\n"
-							"Content-Type: text/html\r\n"
-							"Content-Length: " + intToString(content.length()) + "\r\n"
-							"\r\n" + content;
-	return (res);
+	// std::string res = "HTTP/1.1 200 OK\r\n"
+	// 						"Content-Type: text/html\r\n"
+	// 						"Content-Length: " + intToString(content.length()) + "\r\n"
+	// 						"\r\n" + content;
+	// return (res);
+	return ("");
+}
+
+/**
+ * @brief Used in directory route only. Return a string which contain the path to the file.
+ * Also modify the input argument to remove the file name from the path.
+ * Return empty string if not found.
+ */
+std::string Server::checkDirectoryRoute(int server_fd, std::string &path){
+	std::string file_path;
+
+	std::map<std::string, locationInfo *>::iterator it;
+	for (it = this->servers[server_fd].locations.begin(); it != this->servers[server_fd].locations.end(); it ++){
+		const std::string &base_path = it->first;
+		if (path.substr(0, base_path.length()) == base_path){
+			file_path = path.substr(base_path.length());
+		}
+	}
+	path = path.substr(0, path.length() - file_path.length());
+	return (file_path);
 }

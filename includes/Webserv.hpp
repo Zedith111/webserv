@@ -36,6 +36,8 @@
 # define COLOR_YELLOW  "\033[33m"
 
 enum METHOD{
+	NOT_ALLOWED = -2,
+	NOT_IMPLEMENTED = -1,
 	GET = 0,
 	POST,
 	PUT,

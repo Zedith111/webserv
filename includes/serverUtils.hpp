@@ -18,7 +18,7 @@
 
 # include <algorithm>
 
-int				checkMethod(std::string &method, std::vector<std::string> &limit_except);
+METHOD	getMethod(std::string &method, std::vector<std::string> &limit_except);
 
 
 #endif
