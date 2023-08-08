@@ -239,6 +239,12 @@ void		Server::handleRequest(int socket_fd){
 		std::cout << "Path Index: " << this->servers[server_fd].locations[path]->index << std::endl;
 	}
 
+	if (path == "/favicon.ico"){
+		std::cout << "Favicon requested" << std::endl;
+		this->client_responses[socket_fd] = this->handleError(404, this->client_requests[socket_fd].server_fd);
+		this->client_requests[socket_fd].status_code = 404;
+		return ;
+	}
 	//Check if the path is valide. Will perform two check
 	//	First check for the path is exact match with what present in the location
 	//	If no, check for prefix match
@@ -256,6 +262,7 @@ void		Server::handleRequest(int socket_fd){
 	}
 	//Check if Method can be handle
 	METHOD request_method = getMethod(method, this->servers[server_fd].locations[path]->limit_except);
+	this->client_requests[socket_fd].method = request_method;
 	int method_int = static_cast<int>(request_method);
 	if (method_int < 0){
 		if (method_int == -2){
@@ -273,15 +280,10 @@ void		Server::handleRequest(int socket_fd){
 	}
 	
 	this->client_requests[socket_fd].status_code = 200;
-	//If location has no index and autoindex is on, run autoindex
-	if (this->servers[server_fd].locations[path]->index.empty() && this->servers[server_fd].locations[path]->autoindex == true){
-		//TODO: handle autoindex
-		return ;
-	}
-	typedef std::string (Server::*func)(requestData &, locationInfo &);
+	typedef std::string (Server::*func)(int &, locationInfo &);
 	func methods[METHOD_COUNT] = {&Server::handleGet, &Server::handlePost, &Server::handlePut, &Server::handleHead, &Server::handleDelete};
 	this->client_responses[socket_fd] = (this->*methods[this->client_requests[socket_fd].method])
-											(this->client_requests[socket_fd], *(this->servers[server_fd].locations[path]));
+											(socket_fd, *(this->servers[server_fd].locations[path]));
 }
 
 /**
@@ -305,7 +307,8 @@ void	Server::sendResponse(int socket_fd){
 		std::cout << COLOR_RED << "Error. Send failed at " << socket_fd << strerror(errno) << COLOR_RESET << std::endl;
 	this->client_requests.erase(socket_fd);
 	this->client_responses.erase(socket_fd);
-	std::cout << "sent to " << socket_fd << std::endl;
+	if (DEBUG)
+		std::cout << "Sent to socket: " << socket_fd << std::endl;
 	close(socket_fd);
 }
 
@@ -336,75 +339,91 @@ int	Server::checkReceive(std::string &msg){
 std::string Server::handleError(int status_code, int server_fd){
 	serverConf conf = this->servers[server_fd];
 	std::string res = conf.error_pages[status_code];
-	return (res);
+	std::ifstream file(res.c_str());
+	std::stringstream buffer;
+	buffer << file.rdbuf();
+	std::string content = buffer.str();
+	file.close();
+	return (content);
 }
 
 /**
  * @brief Read the file path of a target location and return the body of response
  */
-//Input parameter is request data and location info struct
-std::string	Server::handleGet(requestData &request, locationInfo &location){
-	// std::cout << "handle get" << std::endl;
-	// std::cout << "index: " << location.index << std::endl;
-	// std::cout << "root: " << location.root << std::endl;
-	//open file
-	std::string file_path = location.root + "/" + location.index;
-	std::ifstream file(file_path.c_str());
-	if (!file.is_open()){
-		std::cout << COLOR_RED << "Error. File not found. " << file_path << COLOR_RESET << std::endl;
-		request.status_code = 404;
-		return ("");
+std::string	Server::handleGet(int &client_fd, locationInfo &location){
+	requestData request = this->client_requests[client_fd];
+	if (request.file_path.empty() && location.index.empty()){
+		if (location.autoindex == true){
+			//TODO: handle autoindex
+			std::cout << "autoindex" << std::endl;
+			return ("autoindex");
+		}
+		else{
+			this->client_requests[client_fd].status_code = 404;
+			return (handleError(404, this->client_requests[client_fd].server_fd));
+		}
 	}
-	// std::string full_path = this->conf.locations[path]->root + "/" + this->conf.locations[path]->index;
-	// std::ifstream file(full_path.c_str());
-	// if (!file.is_open()){
-	// 	std::cout << COLOR_RED << "Error. File not found. " << full_path << COLOR_RESET << std::endl;
-	// 	this->client_responses[socket_fd] = this->handleError(404);
-	// }
-	(void)request;
-	// std::stringstream buffer;
-	// buffer << file.rdbuf();
-	// std::string content = buffer.str();
-	return ("");
-}
-
-std::string	Server::handlePost(requestData &request, locationInfo &location){
-	(void)location;
-	// std::string content = request.header.find
-	std::string line;
-	std::istringstream iss(request.header);
-	while (std::getline(iss, line)) {
-        if (line.find("Content-Type") != std::string::npos) {
-            std::cout << line << std::endl;
-        }
-    }
-	// std::stringstream buffer;
-	// buffer << file.rdbuf();
-	// std::string content = buffer.str();
-
-	// std::string res = "HTTP/1.1 200 OK\r\n"
-	// 						"Content-Type: text/html\r\n"
-	// 						"Content-Length: " + std::to_string(content.length()) + "\r\n"
-	// 						"\r\n" + content;
-	return ("");
-}
-
-std::string	Server::handlePut(requestData &request, locationInfo &location){
-	(void)request;(void)location;
-	// std::stringstream buffer;
-	// buffer << file.rdbuf();
-	// std::string content = buffer.str();
-
-	// std::string res = "HTTP/1.1 200 OK\r\n"
-	// 						"Content-Type: text/html\r\n"
-	// 						"Content-Length: " + std::to_string(content.length()) + "\r\n"
-	// 						"\r\n" + content;
-	return ("");
-}
-
-std::string	Server::handleHead(requestData &request, locationInfo &location){
-	(void)request;(void)location;
+	std::string whole_path = location.root + "/" + location.index;
+	if (!this->client_requests[client_fd].file_path.empty()){
+		whole_path += this->client_requests[client_fd].file_path;
+	}
+	std::ifstream file(whole_path.c_str());
+	if (!file.is_open()){
+		std::cout << COLOR_RED << "Error. File not found. " << whole_path << COLOR_RESET << std::endl;
+		this->client_requests[client_fd].status_code = 404;
+		return (handleError(404, this->client_requests[client_fd].server_fd));
+	}
 	std::stringstream buffer;
+	buffer << file.rdbuf();
+	std::string content = buffer.str();
+	file.close();
+	return (content);
+}
+
+std::string	Server::handlePost(int &client_fd, locationInfo &location){
+	std::cout << "HANDLE POST" << std::endl;
+	(void)location; (void)client_fd;
+	// requestData request = this->client_requests[client_fd];
+
+	// std::string::size_type content_type = request.header.find("Content-Type: ");
+	// //If not content-type, assume for text/plain
+
+
+	// std::string content = request.header.find
+	// std::string line;
+	// std::istringstream iss(request.header);
+	// while (std::getline(iss, line)) {
+    //     if (line.find("Content-Type") != std::string::npos) {
+    //         std::cout << line << std::endl;
+    //     }
+    // }
+	// std::stringstream buffer;
+	// buffer << file.rdbuf();
+	// std::string content = buffer.str();
+
+	// std::string res = "HTTP/1.1 200 OK\r\n"
+	// 						"Content-Type: text/html\r\n"
+	// 						"Content-Length: " + std::to_string(content.length()) + "\r\n"
+	// 						"\r\n" + content;
+	return ("");
+}
+
+std::string	Server::handlePut(int &client_fd, locationInfo &location){
+	(void)client_fd;(void)location;
+	// std::stringstream buffer;
+	// buffer << file.rdbuf();
+	// std::string content = buffer.str();
+
+	// std::string res = "HTTP/1.1 200 OK\r\n"
+	// 						"Content-Type: text/html\r\n"
+	// 						"Content-Length: " + std::to_string(content.length()) + "\r\n"
+	// 						"\r\n" + content;
+	return ("");
+}
+
+std::string	Server::handleHead(int &client_fd, locationInfo &location){
+	(void)client_fd;(void)location;
+	// std::stringstream buffer;
 	// buffer << file.rdbuf();
 	// std::string content = buffer.str();
 
@@ -416,8 +435,8 @@ std::string	Server::handleHead(requestData &request, locationInfo &location){
 	return ("");
 }
 
-std::string	Server::handleDelete(requestData &request, locationInfo &location){
-	(void)request;(void)location;
+std::string	Server::handleDelete(int &client_fd, locationInfo &location){
+	(void)client_fd;(void)location;
 	// std::stringstream buffer;
 	// buffer << file.rdbuf();
 	// std::string content = buffer.str();

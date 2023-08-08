@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>File Upload Client</title>
+</head>
+<body>
+    <h1>File Upload</h1>
+    <input type="file" id="fileInput">
+    <button id="uploadButton">Upload</button>
+    <p id="statusMessage"></p>
+
+    <script>
+        document.getElementById('uploadButton').addEventListener('click', function() {
+            var fileInput = document.getElementById('fileInput');
+            var statusMessage = document.getElementById('statusMessage');
+            
+            if (fileInput.files.length > 0) {
+                var file = fileInput.files[0];
+                var formData = new FormData();
+                formData.append('uploadedFile', file);
+
+                var xhr = new XMLHttpRequest();
+                var serverURL = 'http://localhost:8080/upload'; // Change this to your server URL
+                xhr.open('POST', serverURL, true);
+
+                xhr.onreadystatechange = function() {
+                    if (xhr.readyState === 4) {
+                        if (xhr.status === 200) {
+                            statusMessage.textContent = 'File uploaded successfully!';
+                        } else {
+                            statusMessage.textContent = 'Error uploading file.';
+                        }
+                    }
+                };
+
+                xhr.upload.onprogress = function(e) {
+                    if (e.lengthComputable) {
+                        var percentComplete = (e.loaded / e.total) * 100;
+                        statusMessage.textContent = 'Uploading: ' + percentComplete.toFixed(2) + '%';
+                    }
+                };
+
+                xhr.send(formData);
+            } else {
+                statusMessage.textContent = 'Please select a file to upload.';
+            }
+        });
+    </script>
+</body>
+</html>

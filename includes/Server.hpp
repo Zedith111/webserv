@@ -51,11 +51,11 @@ class Server{
 		int				checkReceive(std::string &msg);
 		std::string		handleError(int status_code, int server_fd);
 
-		std::string		handleGet(requestData &request, locationInfo &location);
-		std::string		handlePost(requestData &request, locationInfo &location);
-		std::string		handlePut(requestData &request, locationInfo &location);
-		std::string		handleHead(requestData &request, locationInfo &location);
-		std::string		handleDelete(requestData &request, locationInfo &location);
+		std::string		handleGet(int &client_fd, locationInfo &location);
+		std::string		handlePost(int &client_fd, locationInfo &location);
+		std::string		handlePut(int &client_fd, locationInfo &location);
+		std::string		handleHead(int &client_fd, locationInfo &location);
+		std::string		handleDelete(int &client_fd, locationInfo &location);
 
 		std::string		checkDirectoryRoute(int server_fd, std::string &path);
 		
