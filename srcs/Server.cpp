@@ -89,7 +89,7 @@ int	Server::init(std::vector<serverConf *> confs){
 
 			//Bind Socket
 			if (bind(socket_fd, res->ai_addr, res->ai_addrlen) < 0){
-				std::cerr << COLOR_RED << "Error. Unable to bind socket for port " << conf.port_number[i] << strerror(errno) << std::endl;
+				std::cerr << COLOR_RED << "Error. Unable to bind socket for port " << conf.port_number[i]  << ". " << strerror(errno) << std::endl;
 				freeaddrinfo(res);
 				return (0);
 			}
@@ -240,7 +240,7 @@ void		Server::handleRequest(int socket_fd){
 	}
 
 	if (path == "/favicon.ico"){
-		std::cout << "Favicon requested" << std::endl;
+		std::cout << COLOR_YELLOW << "Favicon requested" << COLOR_RESET << std::endl;
 		this->client_responses[socket_fd] = this->handleError(404, this->client_requests[socket_fd].server_fd);
 		this->client_requests[socket_fd].status_code = 404;
 		return ;

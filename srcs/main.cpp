@@ -37,23 +37,11 @@ int	main(int argc, char **argv){
 	if (DEBUG)
 		confParser.printConfs();
 
-	//Check error page and compulsory cgi(autoindex) can be can be used
-	//Check if both server use same port and host, if yes, use the first one and print warning
-
 	std::vector<serverConf *>confs = confParser.getConfigs();
 	Server server;
 	if (!server.init(confs))
 		return (1);
-	server.run();
-
-	// for(size_t i = 0; i < confParser.getServerCount(); i++){
-	// 	Server server(confParser.getConfig(i));
-	// 	if (!server.init())
-	// 		return (1);
-	// }
-	
-		// server.run();
-	
+	server.run();	
 }
 
 

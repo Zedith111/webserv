@@ -49,8 +49,11 @@ enum METHOD{
 struct locationInfo{
 	std::string					root;
 	std::string					index;
+	std::string					redirect_address;
 	bool 						autoindex;
+	bool						is_directory;
 	std::vector<std::string>	limit_except;
+	int							max_body_size;
 };
 
 /**
@@ -70,6 +73,7 @@ struct serverConf{
 	std::string server_name;
 	std::string root;
 	std::map<int, std::string>	error_pages;
+	std::multimap<std::string, std::string> cgi;
 	std::map<std::string, locationInfo *> locations;
 };
 

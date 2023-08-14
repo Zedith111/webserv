@@ -3,16 +3,13 @@ valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes  --verbose
 
 Check nginx action with directory
 Check leak as change to vector
-    
-# Complete parser
-    better method to check directory route, tester send /directory
-    parse client limit body size
-    parse redirection
-    parse error page
-    If no limit except, set method to all
-    server name parameter
-    after parse, add check method(error page can open, if same host and port, use first one)
+redirection will overwrite index
+file->redirect->index->autoindex->file
 # Handle request
+    unable to use other tha localhost
+    server name parameter
+    when recv failed, send back error page
+    204 No response
     Fatest method to read file content and return string
     client_max_limit_body_size
     unkonwon request

@@ -54,6 +54,7 @@ int	ConfigParser::parseToken(){
 	int			indent_level = 0;
 	serverConf	*current_conf = NULL;
 
+
 	for (size_t i = 0; i < this->tokens.size(); i++){
 		if (tokens[i] == "{"){
 			indent_level += 1;
@@ -91,11 +92,11 @@ int	ConfigParser::parseToken(){
 }
 
 int	ConfigParser::parseServer(size_t &current, int indent_level, serverConf *current_conf){
-	std::string	keys[] = {"listen", "server_name", "root", "error_pages"};
+	std::string	keys[] = {"listen", "server_name", "root", "error_pages", "Add_handler"};
 	const int			key_size = sizeof(keys) / sizeof(keys[0]);
 	typedef int (ConfigParser::*func)(size_t &, serverConf *);
 	func	key_funcs[key_size] = {&ConfigParser::parseListen, &ConfigParser::parseServerName, &ConfigParser::parseRoot, 
-					&ConfigParser::parseErrorPages};
+					&ConfigParser::parseErrorPages, &ConfigParser::parseCGI};
 
 	//Check present of server block
 	if (current_conf == NULL){
@@ -146,16 +147,28 @@ int	ConfigParser::parseLocation(size_t &current, int indent_level, serverConf *c
 	current += 1;
 	std::string route = this->tokens[current];
 
+	std::map<std::string, locationInfo *>::iterator it = currentConf->locations.find(route);
+	if (it != currentConf->locations.end()){
+		std::cout << COLOR_YELLOW << "Warning. Duplicate route when parsing " << this->tokens[current] 
+		<< ". Only first route will be used. "<< COLOR_RESET << std::endl;
+		delete new_location;
+		while (this->tokens[current] != "}"){
+			current += 1;
+		}
+		return (1);
+	}
+
 	current += 1;
 	if (this->tokens[current] != "{"){
 		std::cout << COLOR_RED << "Error. Missing { after location path" << COLOR_RESET << std::endl;
 		return (0);
 	}
 	current += 1;
-	std::string keys[] = {"autoindex", "root", "index", "limit_except"};
+	std::string keys[] = {"autoindex", "root", "index", "limit_except", "client_max_body_size", "return"};
 	const int key_size = sizeof(keys) / sizeof(keys[0]);
 	typedef int (ConfigParser::*func)(size_t &, locationInfo *);
-	func	key_funcs[key_size] = {&ConfigParser::parseAutoindex, &ConfigParser::parseLocationRoot, &ConfigParser::parseLocationIndex, &ConfigParser::parseLimitExcept};
+	func	key_funcs[key_size] = {&ConfigParser::parseAutoindex, &ConfigParser::parseLocationRoot, 
+	&ConfigParser::parseLocationIndex, &ConfigParser::parseLimitExcept, &ConfigParser::parseMaxBodySize, &ConfigParser::parseRedirection};
 	
 	while (this->tokens[current] != "}"){
 		int keyword_found = -1;
@@ -167,10 +180,13 @@ int	ConfigParser::parseLocation(size_t &current, int indent_level, serverConf *c
 		}
 		if (keyword_found == -1){
 			std::cout << COLOR_RED << "Error. Invalid keyword when parsing " << this->tokens[current] << COLOR_RESET << std::endl;
+			delete new_location;
 			return (0);
 		}
-		if ((this->*key_funcs[keyword_found])(current, new_location) == 0)
+		if ((this->*key_funcs[keyword_found])(current, new_location) == 0){
+			delete new_location;
 			return (0);
+		}
 		current += 1;
 	}
 	currentConf->locations[route] = new_location;
@@ -178,11 +194,13 @@ int	ConfigParser::parseLocation(size_t &current, int indent_level, serverConf *c
 }
 
 /**
- * @brief Check and fill out necessary information if the config file does nor provide.
+ * @brief Check and fill out necessary information if the config file does not provide.
  * This includes:
  * 		- Necessary information, including host, port,root, server_name
- * 		- Check the error pages, if one of missing, fill out with default error pages
- * 		- Attach server root of location root 
+ * 		- Check the error pages, if one is missing, fill out with default error pages
+ * 		- Attach server root to location root
+ * 		- Check if has duplicate server block. Server block is considered duplicate if it has same host and port, the 
+ * 			first one will be used
  * Will return error if:
  * 		- Missing necessary information
  * 		- Invalid directory of location root
@@ -198,6 +216,7 @@ int ConfigParser::validateConfig(){
 			return (0);
 		addErrorpages(current_conf);
 	}
+	validateServer();
 	return (1);
 }
 
@@ -267,8 +286,25 @@ int ConfigParser::parseErrorPages(size_t &current, serverConf *current_conf){
 		std::cout << COLOR_RED << "Error. Invalid error page path: " << this->tokens[current] << COLOR_RESET << std::endl;
 		return (0);
 	}
+	//Check for key present here
 	current_conf->error_pages[error_code] = this->tokens[current];
 	current +=1;
+	return (checkEnding(current));
+}
+
+int ConfigParser::parseCGI(size_t &current, serverConf *current_conf){
+	current += 1;
+	std::string cgi_path = this->tokens[current];
+	current += 1;
+	while (this->tokens[current] != ";"){
+		if (this->tokens[current][0] != '.'){
+			std::cout << COLOR_RED << "Error. Invalid extension: " << this->tokens[current] 
+			<< ". Extension must start with '.'"<< COLOR_RESET << std::endl;
+			return (0);
+		}
+		current_conf->cgi.insert(std::pair<std::string, std::string>(this->tokens[current], cgi_path));
+		current += 1;
+	}
 	return (checkEnding(current));
 }
 
@@ -316,6 +352,26 @@ int	ConfigParser::parseLimitExcept(size_t &current, locationInfo *current_loc){
 		current += 1;
 	}
 	return (1); 
+}
+
+int	ConfigParser::parseMaxBodySize(size_t &current, locationInfo *current_loc){
+	current += 1;
+	std::istringstream iss(this->tokens[current]);
+	int max_body_size;
+	if (!(iss >> max_body_size)){
+		std::cout << COLOR_RED << "Error. Invalid max body size: " << this->tokens[current] << COLOR_RESET << std::endl;
+		return (0);
+	}
+	current_loc->max_body_size = max_body_size;
+	current += 1;
+	return (checkEnding(current));
+}
+
+int	ConfigParser::parseRedirection(size_t &current, locationInfo *current_loc){
+	current += 1;
+	current_loc->redirect_address = this->tokens[current];
+	current += 1;
+	return (checkEnding(current));
 }
 
 int ConfigParser::initDefaultErrorpages(){
@@ -368,6 +424,23 @@ int ConfigParser::validateLocationRoot(serverConf *current_conf){
 		}
 	}
 	return (1);
+}
+
+void	ConfigParser::validateServer(){
+	for (size_t i = 0; i < this->server_confs.size() - 1; i++){
+		size_t j = i + 1;
+		if (this->server_confs[i]->host == this->server_confs[j]->host){
+			for (size_t k = 0; k < this->server_confs[i]->port_number.size(); k++){
+				for (size_t l = 0; l < this->server_confs[j]->port_number.size(); l++){
+					if (this->server_confs[i]->port_number[k] == this->server_confs[j]->port_number[l]){
+						std::cout << COLOR_YELLOW << "Warning. Dupilcate port: " << this->server_confs[i]->port_number[k] <<
+						". Only the first one will be used" << COLOR_RESET << std::endl;
+						this->server_confs[j]->port_number.erase(this->server_confs[j]->port_number.begin() + l);
+					}
+				}
+			}
+		}
+	}
 }
 
 int ConfigParser::checkEnding(size_t &current){

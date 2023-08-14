@@ -6,23 +6,11 @@
 /*   By: zah <zah@student.42kl.edu.my>              +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2023/07/24 13:14:45 by zah               #+#    #+#             */
-/*   Updated: 2023/07/31 14:04:24 by zah              ###   ########.fr       */
+/*   Updated: 2023/08/14 15:28:13 by zah              ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
 #include "utils.hpp"
-
-void printConfig(serverConf &conf){
-	std::cout << "Host: " << conf.host << std::endl;
-	std::cout << "Port: " ;
-	for (size_t i=0; i < conf.port_number.size(); i++){
-		std::cout << conf.port_number[i] << ", ";
-	}
-	std::cout << std::endl;
-	std::cout << "Server Name: " << conf.server_name << std::endl;
-	std::cout << "Root: " << conf.root << std::endl;
-
-}
 
 /**
  * @brief Check if the path is a directory
