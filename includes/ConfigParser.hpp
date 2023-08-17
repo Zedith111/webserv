@@ -46,6 +46,7 @@ class ConfigParser{
 		int	parseLimitExcept(size_t &current, locationInfo *current_loc);
 		int parseMaxBodySize(size_t &current, locationInfo *current_loc);
 		int parseRedirection(size_t &current, locationInfo *current_loc);
+		int parseUploadStore(size_t &current, locationInfo *current_loc);
 
 		//Validating Functions
 		void	addErrorpages(serverConf *current_conf);

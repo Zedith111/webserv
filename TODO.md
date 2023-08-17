@@ -5,17 +5,22 @@ Check nginx action with directory
 Check leak as change to vector
 redirection will overwrite index
 file->redirect->index->autoindex->file
+
+To add new error page
+    configParser::addErrorPages
+    configParser::initDefaultErrorPages
+    Server::Server
+
+# Parser 
+    upload_store
+
 # Handle request
-    unable to use other tha localhost
-    server name parameter
-    when recv failed, send back error page
+    check upload dir can be open, if not, return 500
+    max_body_size
     204 No response
     Fatest method to read file content and return string
-    client_max_limit_body_size
     unkonwon request
     when passing route, check for root directory, if have index variable
-    Handle /fav.ico
-    Check auto index and index which will be dominant
     when not member function failed, close socket and clear in FdSet
     sent bad request
     check http version

@@ -164,11 +164,12 @@ int	ConfigParser::parseLocation(size_t &current, int indent_level, serverConf *c
 		return (0);
 	}
 	current += 1;
-	std::string keys[] = {"autoindex", "root", "index", "limit_except", "client_max_body_size", "return"};
+	std::string keys[] = {"autoindex", "root", "index", "limit_except", "client_max_body_size", "return", "upload_store"};
 	const int key_size = sizeof(keys) / sizeof(keys[0]);
 	typedef int (ConfigParser::*func)(size_t &, locationInfo *);
 	func	key_funcs[key_size] = {&ConfigParser::parseAutoindex, &ConfigParser::parseLocationRoot, 
-	&ConfigParser::parseLocationIndex, &ConfigParser::parseLimitExcept, &ConfigParser::parseMaxBodySize, &ConfigParser::parseRedirection};
+	&ConfigParser::parseLocationIndex, &ConfigParser::parseLimitExcept, &ConfigParser::parseMaxBodySize, 
+	&ConfigParser::parseRedirection, &ConfigParser::parseUploadStore};
 	
 	while (this->tokens[current] != "}"){
 		int keyword_found = -1;
@@ -370,6 +371,13 @@ int	ConfigParser::parseMaxBodySize(size_t &current, locationInfo *current_loc){
 int	ConfigParser::parseRedirection(size_t &current, locationInfo *current_loc){
 	current += 1;
 	current_loc->redirect_address = this->tokens[current];
+	current += 1;
+	return (checkEnding(current));
+}
+
+int	ConfigParser::parseUploadStore(size_t &current, locationInfo *current_loc){
+	current += 1;
+	current_loc->upload_path = this->tokens[current];
 	current += 1;
 	return (checkEnding(current));
 }

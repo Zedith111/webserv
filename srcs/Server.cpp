@@ -374,7 +374,6 @@ std::string Server::handleError(int status_code, int server_fd){
  * @brief Find the host name parameter and match it with the server name parameter
  */
 int Server::checkHost(std::string &header, std::string &server_name){
-	std::ifstream host_file("/etc/hosts");
 	std::string::size_type pos = header.find("Host: ");
 	if (pos == std::string::npos){
 		std::cout << COLOR_RED << "Error. Host parameter not found" << COLOR_RESET << std::endl;
@@ -386,9 +385,20 @@ int Server::checkHost(std::string &header, std::string &server_name){
 	pos = host.find(":");
 	if (pos != std::string::npos)
 		host = host.substr(0, pos);
-	std::cout << "Host: " << host << std::endl;
+	if (host == server_name)
+		return (1);
 	
-	return (host == server_name);
+	std::ifstream host_file("/etc/hosts");
+	std::string line;
+	if (host_file.is_open()){
+		while (std::getline(host_file, line)) {
+			if (line.find(host) != std::string::npos){
+        		if (line.find(server_name) != std::string::npos)
+					return (1);
+			}
+    	}
+	}
+	return (0);
 }
 
 /**
@@ -525,22 +535,6 @@ std::string Server::checkDirectoryRoute(int server_fd, std::string &path){
 	}
 	return (file_path);
 }
-
-/**
- * @brief Generate autoindex. If is not a directory, return 403 error page
- */
-// std::string Server::generateAutoindex(int client_fd, std::string &file_path){
-// 	if (checkIsDirectory(path) <= 0){
-// 		this->client_requests[client_fd].status_code = 403;
-// 		return (handleError(403, this->client_requests[client_fd].server_fd));
-// 	}
-// 	std::string res;
-
-
-// 	std::cout << "In autoindex" << std::endl;
-// 	std::cout << file_path << std::endl;
-// 	return (res);
-// }
 
 std::string	Server::generateAutoindex(int &client_fd, std::string &route, std::string &file_path){
 		std::cout << "Route: " << route << std::endl;
