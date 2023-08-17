@@ -6,7 +6,7 @@
 /*   By: zah <zah@student.42kl.edu.my>              +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2023/07/24 13:14:45 by zah               #+#    #+#             */
-/*   Updated: 2023/08/14 15:28:13 by zah              ###   ########.fr       */
+/*   Updated: 2023/08/17 14:53:22 by zah              ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -70,4 +70,46 @@ std::ostream&	operator<<(std::ostream& os, const serverConf& obj){
 	}
 	os << "\t\tEnd of Config File";
 	return (os);
+}
+
+/**
+ * @brief Route refer to the route that pass to the server, file_path refer to the actual path of the file in the harddrive
+ */
+std::string 	printDirectory(std::string &route, std::string &file_path){
+	DIR *dir = opendir(file_path.c_str());
+	if (dir == NULL){
+		throw unableToOpenDirException();
+	}
+	std::string res;
+	struct dirent *entry;
+	while ((entry = readdir(dir)) != NULL){
+		std::string file_name = entry->d_name;
+		if (file_name == "." || file_name == "..")
+			continue ;
+		std::string whole_path = file_path + "/" + file_name;
+		std::string whole_route = route + "/" + file_name;
+		res += "<tr>\n";
+		res += "<td><a href=\"" + whole_route + "\">";
+		res += file_name;
+		std::cout << "File name: " << file_name << std::endl;
+		res += "</a>\n</td>";
+		struct stat file_stat;
+		if (stat(whole_path.c_str(), &file_stat) != 0){
+			throw unableToOpenDirException();
+		}
+		res += "\n<td>" + intToString(file_stat.st_size) + " bytes</td>";
+		res += "\n<td>" + std::string(ctime(&file_stat.st_mtime)) + "</td>";
+		res += "<br>\n</tr>";
+		if (checkIsDirectory(whole_path) == 1){
+			res += printDirectory(whole_route, whole_path);
+		}
+	}
+	closedir(dir);
+	return (res);
+}
+
+
+const char *unableToOpenDirException::what() const throw()
+{
+	return ("unable to open directory");
 }

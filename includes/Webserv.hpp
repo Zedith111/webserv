@@ -29,6 +29,7 @@
 # include <fcntl.h>
 # include <vector>
 # include <map>
+# include <exception>
 
 # define COLOR_RESET   "\033[0m"
 # define COLOR_RED     "\033[31m"
@@ -50,6 +51,7 @@ struct locationInfo{
 	std::string					root;
 	std::string					index;
 	std::string					redirect_address;
+	std::string 				upload_path;
 	bool 						autoindex;
 	bool						is_directory;
 	std::vector<std::string>	limit_except;
@@ -62,8 +64,11 @@ struct locationInfo{
  * @param host The host of the server, can be either an IP address or a domain name.
  * Port number will be excluded. Only one unique host is allowed.
  * @param port_number A vector of port numbers to listen to. The port number is stored as string
- * @param total_port The total number of port to listen to. 
  * @param server_name The name of the server. Can be any string.
+ * @param root The root directory of the server. All files will relative to this directory.
+ * @param error_pages A map of error pages. The key is the status code, and the value is the path to the error page.
+ * @param cgi A multimap of cgi. The key is the path to the cgi, and the value is the path to the executable. Multiple cgi extension
+ * can be mapped to the same executable.
  * @param locations A map of locationInfo. The key is the location path, and the value is the locationInfo struct.
  * 
  */

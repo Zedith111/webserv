@@ -50,6 +50,7 @@ class Server{
 		void			sendResponse(int socket_fd);
 		int				checkReceive(std::string &msg);
 		std::string		handleError(int status_code, int server_fd);
+		int				checkHost(std::string &header, std::string &server_name);
 
 		std::string		handleGet(int &client_fd, locationInfo &location);
 		std::string		handlePost(int &client_fd, locationInfo &location);
@@ -58,6 +59,7 @@ class Server{
 		std::string		handleDelete(int &client_fd, locationInfo &location);
 
 		std::string		checkDirectoryRoute(int server_fd, std::string &path);
+		std::string		generateAutoindex(int &client_fd, std::string &route, std::string &file_path);
 		
 	public:
 		Server();

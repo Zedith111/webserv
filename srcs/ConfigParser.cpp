@@ -375,6 +375,7 @@ int	ConfigParser::parseRedirection(size_t &current, locationInfo *current_loc){
 }
 
 int ConfigParser::initDefaultErrorpages(){
+	this->default_error_pages[400] = "./default_error_pages/400.html";
 	this->default_error_pages[403] = "./default_error_pages/403.html";
 	this->default_error_pages[404] = "./default_error_pages/404.html";
 	this->default_error_pages[405] = "./default_error_pages/405.html";
@@ -398,7 +399,7 @@ int ConfigParser::initDefaultErrorpages(){
 }
 
 void ConfigParser::addErrorpages(serverConf *current_conf){
-	int all_codes[] = {403, 404, 405};
+	int all_codes[] = {400, 403, 404, 405, 500, 501};
 	const int codes_size = sizeof(all_codes) / sizeof(int);
 
 	for (int i = 0; i < codes_size; i++){

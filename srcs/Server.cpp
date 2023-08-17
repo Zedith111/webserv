@@ -19,6 +19,8 @@
 Server::Server(){
 	// //Add reason phrase
 	this->reason_phrases[200] = "OK";
+	this->reason_phrases[301] = "Moved Permanently";
+	this->reason_phrases[400] = "Bad Request";
 	this->reason_phrases[403] = "Forbidden";
 	this->reason_phrases[404] = "Not Found";
 	this->reason_phrases[405] = "Method Not Allowed";
@@ -202,9 +204,9 @@ void	Server::handleConnection(int socket_fd){
 		}
 		if (bytes_read < 0){
 			std::cout << "Error. recv failed at " << socket_fd << std::endl;
-			//TODP: sent 500
-			this->client_requests.erase(socket_fd);
-			close(socket_fd);
+			this->client_responses[socket_fd] = this->handleError(500, this->client_requests[socket_fd].server_fd);
+			this->client_requests[socket_fd].status_code = 500;
+			sendResponse(socket_fd);
 			return ;
 		}
 		this->client_requests[socket_fd].whole_request.append(buffer, bytes_read);
@@ -229,6 +231,8 @@ void		Server::handleRequest(int socket_fd){
 	std::string method = header.substr(0, pos);
 	pos ++;
 	std::string path = header.substr(pos, header.find(' ', pos) - pos);
+	this->client_requests[socket_fd].path = path;
+	
 	int	server_fd = this->client_requests[socket_fd].server_fd;
 	if (DEBUG){
 		std::cout << "Request Header: " << std::endl << header << std::endl;
@@ -239,12 +243,20 @@ void		Server::handleRequest(int socket_fd){
 		std::cout << "Path Index: " << this->servers[server_fd].locations[path]->index << std::endl;
 	}
 
+	if (!checkHost(this->client_requests[socket_fd].header, this->servers[server_fd].server_name)){
+		std::cout << COLOR_RED << "Error. Host and server name does not match" << COLOR_RESET << std::endl;
+		this->client_responses[socket_fd] = this->handleError(400, this->client_requests[socket_fd].server_fd);
+		this->client_requests[socket_fd].status_code = 400;
+		return ;
+	}
+
 	if (path == "/favicon.ico"){
 		std::cout << COLOR_YELLOW << "Favicon requested" << COLOR_RESET << std::endl;
 		this->client_responses[socket_fd] = this->handleError(404, this->client_requests[socket_fd].server_fd);
 		this->client_requests[socket_fd].status_code = 404;
 		return ;
 	}
+
 	//Check if the path is valide. Will perform two check
 	//	First check for the path is exact match with what present in the location
 	//	If no, check for prefix match
@@ -260,6 +272,7 @@ void		Server::handleRequest(int socket_fd){
 		else
 			this->client_requests[socket_fd].file_path = file_path;
 	}
+
 	//Check if Method can be handle
 	METHOD request_method = getMethod(method, this->servers[server_fd].locations[path]->limit_except);
 	this->client_requests[socket_fd].method = request_method;
@@ -296,11 +309,18 @@ void	Server::sendResponse(int socket_fd){
 	res += " ";
 	res += this->reason_phrases[status_code];
 	res += "\r\n";
-	res += "Content-Type: text/html\r\n";
-	res += "Content-Length: ";
-	res += intToString(this->client_responses[socket_fd].length());
-	res += "\r\n\r\n";
-	res += this->client_responses[socket_fd];
+	if (status_code == 301){
+		res += "Location: ";
+		res += this->client_responses[socket_fd];
+		res += "\r\n\r\n";
+	}
+	else{
+		res += "Content-Type: text/html\r\n";
+		res += "Content-Length: ";
+		res += intToString(this->client_responses[socket_fd].length());
+		res += "\r\n\r\n";
+		res += this->client_responses[socket_fd];
+	}
 	
 	int byteSend = send(socket_fd, res.c_str(), res.length(), 0);
 	if (byteSend < 0)
@@ -336,6 +356,9 @@ int	Server::checkReceive(std::string &msg){
 	return (1);
 }
 
+/**
+ * @brief Read the respective error code and write the html file to the response body
+ */
 std::string Server::handleError(int status_code, int server_fd){
 	serverConf conf = this->servers[server_fd];
 	std::string res = conf.error_pages[status_code];
@@ -348,24 +371,56 @@ std::string Server::handleError(int status_code, int server_fd){
 }
 
 /**
+ * @brief Find the host name parameter and match it with the server name parameter
+ */
+int Server::checkHost(std::string &header, std::string &server_name){
+	std::ifstream host_file("/etc/hosts");
+	std::string::size_type pos = header.find("Host: ");
+	if (pos == std::string::npos){
+		std::cout << COLOR_RED << "Error. Host parameter not found" << COLOR_RESET << std::endl;
+		return (0);
+	}
+	pos += 6;
+	std::string::size_type end_pos = header.find("\r\n", pos);
+	std::string host = header.substr(pos, end_pos - pos);
+	pos = host.find(":");
+	if (pos != std::string::npos)
+		host = host.substr(0, pos);
+	std::cout << "Host: " << host << std::endl;
+	
+	return (host == server_name);
+}
+
+/**
  * @brief Read the file path of a target location and return the body of response
+ * Handle get request, will follow order below
+ * 		- Search for specific file eg. /index.html. If not found will sent 404
+ * 		- Handle redirection
+ * 		- Use index parameter
+ * 		- Use autoindex parameter
  */
 std::string	Server::handleGet(int &client_fd, locationInfo &location){
-	requestData request = this->client_requests[client_fd];
-	if (request.file_path.empty() && location.index.empty()){
+	requestData &request = this->client_requests[client_fd];
+	if (request.file_path.empty() && location.index.empty() && location.redirect_address.empty()){
 		if (location.autoindex == true){
-			//TODO: handle autoindex
-			std::cout << "autoindex" << std::endl;
-			return ("autoindex");
+			return (generateAutoindex(client_fd, request.path, location.root));
 		}
 		else{
 			this->client_requests[client_fd].status_code = 404;
 			return (handleError(404, this->client_requests[client_fd].server_fd));
 		}
 	}
-	std::string whole_path = location.root + "/" + location.index;
-	if (!this->client_requests[client_fd].file_path.empty()){
-		whole_path += this->client_requests[client_fd].file_path;
+	
+	std::string whole_path;
+	if (!request.file_path.empty()){
+		whole_path = location.root + request.file_path;
+	}
+	else if (!location.redirect_address.empty()){
+		this->client_requests[client_fd].status_code = 301;
+		return (location.redirect_address);
+	}
+	else{
+		whole_path = location.root + "/" + location.index;
 	}
 	std::ifstream file(whole_path.c_str());
 	if (!file.is_open()){
@@ -450,7 +505,7 @@ std::string	Server::handleDelete(int &client_fd, locationInfo &location){
 }
 
 /**
- * @brief Used in directory route only. Return a string which contain the path to the file.
+ * @brief Called when no exact match found in route. Will check for prefix match and return the file path. 
  * Also modify the input argument to remove the file name from the path.
  * Return empty string if not found.
  */
@@ -465,5 +520,48 @@ std::string Server::checkDirectoryRoute(int server_fd, std::string &path){
 		}
 	}
 	path = path.substr(0, path.length() - file_path.length());
+	if (file_path[0] != '/'){
+		file_path = "/" + file_path;
+	}
 	return (file_path);
+}
+
+/**
+ * @brief Generate autoindex. If is not a directory, return 403 error page
+ */
+// std::string Server::generateAutoindex(int client_fd, std::string &file_path){
+// 	if (checkIsDirectory(path) <= 0){
+// 		this->client_requests[client_fd].status_code = 403;
+// 		return (handleError(403, this->client_requests[client_fd].server_fd));
+// 	}
+// 	std::string res;
+
+
+// 	std::cout << "In autoindex" << std::endl;
+// 	std::cout << file_path << std::endl;
+// 	return (res);
+// }
+
+std::string	Server::generateAutoindex(int &client_fd, std::string &route, std::string &file_path){
+		std::cout << "Route: " << route << std::endl;
+		std::cout << "File Path: " << file_path << std::endl;
+
+		if (checkIsDirectory(file_path) <= 0){
+			this->client_requests[client_fd].status_code = 403;
+			return (handleError(403, this->client_requests[client_fd].server_fd));
+		}
+		std::string res;
+		res += "<html>\n<head>\n<title>Index of " + route + "</title>\n</head>\n<body>\n<h1>Index of " + route + "</h1>\n";
+		res += "<table>\n<tr>\n<th>Name</th>\n<th>Last Modified</th>\n<th>Size</th>\n</tr>\n";
+		try{
+			res += printDirectory(route, file_path);
+		}
+		catch(const std::exception &e)
+		{
+			std::cout << COLOR_RED << "Error. Unable to open directory " << file_path << COLOR_RESET << std::endl;
+			this->client_requests[client_fd].status_code = 500;
+			return (handleError(500, this->client_requests[client_fd].server_fd));
+		}
+		res += "</table></body>\n</html>";
+		return (res);
 }
