@@ -24,6 +24,7 @@ Server::Server(){
 	this->reason_phrases[403] = "Forbidden";
 	this->reason_phrases[404] = "Not Found";
 	this->reason_phrases[405] = "Method Not Allowed";
+	this->reason_phrases[415] = "Unsupported Media Type";
 	this->reason_phrases[500] = "Internal Server Error";
 	this->reason_phrases[501] = "Not Implemented";
 }
@@ -413,6 +414,7 @@ std::string	Server::handleGet(int &client_fd, locationInfo &location){
 	requestData &request = this->client_requests[client_fd];
 	if (request.file_path.empty() && location.index.empty() && location.redirect_address.empty()){
 		if (location.autoindex == true){
+
 			return (generateAutoindex(client_fd, request.path, location.root));
 		}
 		else{
@@ -447,11 +449,18 @@ std::string	Server::handleGet(int &client_fd, locationInfo &location){
 
 std::string	Server::handlePost(int &client_fd, locationInfo &location){
 	std::cout << "HANDLE POST" << std::endl;
-	(void)location; (void)client_fd;
-	// requestData request = this->client_requests[client_fd];
+	(void)location;
+	requestData request = this->client_requests[client_fd];
+	std::string::size_type content_type = request.header.find("Content-Type: ");
 
-	// std::string::size_type content_type = request.header.find("Content-Type: ");
-	// //If not content-type, assume for text/plain
+	if (content_type == std::string::npos){
+		this->client_requests[client_fd].status_code = 400;
+		return (this->handleError(400, this->client_requests[client_fd].server_fd));
+	}
+
+	
+	//if no content-type , return 400
+	//if content-type not match, return 415
 
 
 	// std::string content = request.header.find
