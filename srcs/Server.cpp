@@ -449,7 +449,6 @@ std::string	Server::handleGet(int &client_fd, locationInfo &location){
 
 std::string	Server::handlePost(int &client_fd, locationInfo &location){
 	std::cout << "HANDLE POST" << std::endl;
-	(void)location;
 	requestData request = this->client_requests[client_fd];
 	std::string::size_type content_type = request.header.find("Content-Type: ");
 
@@ -457,10 +456,19 @@ std::string	Server::handlePost(int &client_fd, locationInfo &location){
 		this->client_requests[client_fd].status_code = 400;
 		return (this->handleError(400, this->client_requests[client_fd].server_fd));
 	}
-
 	
-	//if no content-type , return 400
-	//if content-type not match, return 415
+	std::string content_type_value = request.header.substr(content_type + 14, request.header.find("\r\n", content_type) - content_type - 14);
+	std::cout << "Header value: " << content_type_value << std::endl;
+	
+	if (content_type_value.find("multipart/form-data") == std::string::npos &&
+		 content_type_value != "text/plain"){
+		this->client_requests[client_fd].status_code = 415;
+		return (this->handleError(415, this->client_requests[client_fd].server_fd));
+	}
+	std::cout << this->client_requests[client_fd].whole_request << std::endl;
+	
+	std::cout << "Directory: " << location.upload_path << std::endl;
+	
 
 
 	// std::string content = request.header.find
