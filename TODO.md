@@ -12,12 +12,14 @@ To add new error page
     Server::Server
 
 # Parser 
-    upload_store
 
 # Handle request
     check upload dir can be open, if not, return 500
     switch content length to usngined long
-    max_body_size
+    max_body_size(check content-length, and read both)
+    check nesting directory with autoindex
+        test_dir/test->autoindex on
+    handle method has additional parameter to check whether need to check file size (for post and put only)
     204 No response
     Fatest method to read file content and return string
     unkonwon request

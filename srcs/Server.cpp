@@ -426,6 +426,15 @@ std::string	Server::handleGet(int &client_fd, locationInfo &location){
 	std::string whole_path;
 	if (!request.file_path.empty()){
 		whole_path = location.root + request.file_path;
+		if (checkIsDirectory(whole_path) == 1){
+			if (this->servers[request.server_fd].locations.find(request.path) == this->servers[request.server_fd].locations.end())
+				this->client_requests[client_fd].status_code = 404;
+				return (handleError(404, this->client_requests[client_fd].server_fd));
+		}
+		else{
+			locationInfo new_location = *(this->servers[request.server_fd].locations[request.path]);
+			return (this->handleGet(client_fd, new_location));
+		}
 	}
 	else if (!location.redirect_address.empty()){
 		this->client_requests[client_fd].status_code = 301;
@@ -447,6 +456,11 @@ std::string	Server::handleGet(int &client_fd, locationInfo &location){
 	return (content);
 }
 
+/**
+ * @brief The server will only handle two type of content type: "text/plain" and "multipart/form-data", other will return 400.
+ * "text/plain" will stored the request body in database.txt
+ * "multipart/form-data" will save the file in the upload directory
+ */
 std::string	Server::handlePost(int &client_fd, locationInfo &location){
 	std::cout << "HANDLE POST" << std::endl;
 	requestData request = this->client_requests[client_fd];
@@ -467,26 +481,8 @@ std::string	Server::handlePost(int &client_fd, locationInfo &location){
 	}
 	std::cout << this->client_requests[client_fd].whole_request << std::endl;
 	
-	std::cout << "Directory: " << location.upload_path << std::endl;
-	
-
-
-	// std::string content = request.header.find
-	// std::string line;
-	// std::istringstream iss(request.header);
-	// while (std::getline(iss, line)) {
-    //     if (line.find("Content-Type") != std::string::npos) {
-    //         std::cout << line << std::endl;
-    //     }
-    // }
-	// std::stringstream buffer;
-	// buffer << file.rdbuf();
-	// std::string content = buffer.str();
-
-	// std::string res = "HTTP/1.1 200 OK\r\n"
-	// 						"Content-Type: text/html\r\n"
-	// 						"Content-Length: " + std::to_string(content.length()) + "\r\n"
-	// 						"\r\n" + content;
+	std::cout << "Upload Directory: " << location.upload_path << std::endl;
+	std::cout << "root:" << location.root << std::endl;
 	return ("");
 }
 
