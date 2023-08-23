@@ -11,12 +11,20 @@ To add new error page
     configParser::initDefaultErrorPages
     Server::Server
 
+# Test
+## Get
+    file
+    index
+    autoindex
+    redirection
+
 # Parser 
 
 # Handle request
-    check upload dir can be open, if not, return 500
+    under what circumstances will the form-data contain multiple disposition or multiple boundary
     switch content length to usngined long
-    max_body_size(check content-length, and read both)
+ 
+    max_body_size(check content-length first, and read both)
     check nesting directory with autoindex
         test_dir/test->autoindex on
     handle method has additional parameter to check whether need to check file size (for post and put only)

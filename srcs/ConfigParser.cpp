@@ -143,7 +143,10 @@ int	ConfigParser::parseLocation(size_t &current, int indent_level, serverConf *c
 	}
 
 	locationInfo *new_location = new locationInfo;
+
 	new_location->autoindex = 0;
+	new_location->max_body_size_set = 0;
+	
 	current += 1;
 	std::string route = this->tokens[current];
 
@@ -358,11 +361,12 @@ int	ConfigParser::parseLimitExcept(size_t &current, locationInfo *current_loc){
 int	ConfigParser::parseMaxBodySize(size_t &current, locationInfo *current_loc){
 	current += 1;
 	std::istringstream iss(this->tokens[current]);
-	int max_body_size;
+	std::string::size_type max_body_size;
 	if (!(iss >> max_body_size)){
 		std::cout << COLOR_RED << "Error. Invalid max body size: " << this->tokens[current] << COLOR_RESET << std::endl;
 		return (0);
 	}
+	current_loc->max_body_size_set = 1;
 	current_loc->max_body_size = max_body_size;
 	current += 1;
 	return (checkEnding(current));
@@ -387,6 +391,7 @@ int ConfigParser::initDefaultErrorpages(){
 	this->default_error_pages[403] = "./default_error_pages/403.html";
 	this->default_error_pages[404] = "./default_error_pages/404.html";
 	this->default_error_pages[405] = "./default_error_pages/405.html";
+	this->default_error_pages[413] = "./default_error_pages/413.html";
 	this->default_error_pages[415] = "./default_error_pages/415.html";
 	this->default_error_pages[500] = "./default_error_pages/500.html";
 	this->default_error_pages[501] = "./default_error_pages/501.html";
@@ -408,7 +413,7 @@ int ConfigParser::initDefaultErrorpages(){
 }
 
 void ConfigParser::addErrorpages(serverConf *current_conf){
-	int all_codes[] = {400, 403, 404, 405, 415, 500, 501};
+	int all_codes[] = {400, 403, 404, 405, 413, 415, 500, 501};
 	const int codes_size = sizeof(all_codes) / sizeof(int);
 
 	for (int i = 0; i < codes_size; i++){

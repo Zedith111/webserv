@@ -31,3 +31,56 @@ METHOD	getMethod(std::string &method, std::vector<std::string> &limit_except){
 	else
 		return (NOT_IMPLEMENTED);
 }
+
+/**
+ * @brief Parse the body of a POST request with multipart/form-data encoding. Separate
+ * the data and put into a vector of formData struct.
+ */
+std::vector<formData>	parseUpload(std::string &body, std::string &boundary){
+	std::vector<formData>	formDataList;
+	std::string::size_type current_pos = body.find(boundary);
+	while (current_pos != std::string::npos){
+		std::string::size_type next_pos = body.find(boundary, current_pos + boundary.length());
+		if (next_pos == std::string::npos){
+			break ;
+		}
+
+		std::string data = body.substr(current_pos, next_pos - current_pos);
+		current_pos = next_pos;
+
+		std::string::size_type disposition_pos = data.find("Content-Disposition: form-data;");
+		if (disposition_pos != std::string::npos){
+			formData form_data;
+
+			std::string::size_type name_pos = data.find("name=\"", disposition_pos);
+			if (name_pos != std::string::npos){
+				name_pos += 6;
+				std::string::size_type name_pos_end = data.find("\"", name_pos);
+				form_data.name = data.substr(name_pos, name_pos_end - name_pos);
+			}
+
+			std::string::size_type filename_pos = data.find("filename=\"", disposition_pos);
+			if (filename_pos != std::string::npos){
+				filename_pos += 10;
+				std::string::size_type filename_pos_end = data.find("\"", filename_pos);
+				form_data.filename = data.substr(filename_pos, filename_pos_end - filename_pos);
+			}
+			form_data.data = data.substr(data.find("\r\n\r\n") + 4);
+			formDataList.push_back(form_data);
+		}
+		
+	}
+	return (formDataList);
+}
+
+int	storeFile(std::string &directory_path, formData &form_data){
+	std::string file_path = directory_path + "/" + form_data.filename;
+	std::ofstream file(file_path.c_str());
+	if (!file.is_open()){
+		std::cout << "Error opening file: " << file_path << std::endl;
+		return (0);
+	}
+	file << form_data.data;
+	file.close();
+	return (1);
+}

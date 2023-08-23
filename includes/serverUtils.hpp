@@ -14,11 +14,18 @@
 # define SERVERUTILS_HPP
 
 # include "Webserv.hpp"
-# include "Server.hpp"
 
 # include <algorithm>
 
+struct formData{
+	std::string name;
+	std::string filename;
+	std::string data;
+};
+
 METHOD	getMethod(std::string &method, std::vector<std::string> &limit_except);
+std::vector<formData>	parseUpload(std::string &body, std::string &boundary);
+int	storeFile(std::string &directory_path, formData &form_data);
 
 
 #endif

@@ -55,6 +55,7 @@ struct locationInfo{
 	bool 						autoindex;
 	bool						is_directory;
 	std::vector<std::string>	limit_except;
+	bool						max_body_size_set;
 	std::string::size_type		max_body_size;
 };
 

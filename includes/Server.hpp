@@ -60,7 +60,8 @@ class Server{
 
 		std::string		checkDirectoryRoute(int server_fd, std::string &path);
 		std::string		generateAutoindex(int &client_fd, std::string &route, std::string &file_path);
-		
+		std::string		handleUpload(int &client_fd, locationInfo &location);
+		std::string 	handlePostText(int &client_fd);
 	public:
 		Server();
 		~Server();

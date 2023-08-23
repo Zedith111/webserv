@@ -24,6 +24,7 @@ Server::Server(){
 	this->reason_phrases[403] = "Forbidden";
 	this->reason_phrases[404] = "Not Found";
 	this->reason_phrases[405] = "Method Not Allowed";
+	this->reason_phrases[413] = "Request Enity Too Large";
 	this->reason_phrases[415] = "Unsupported Media Type";
 	this->reason_phrases[500] = "Internal Server Error";
 	this->reason_phrases[501] = "Not Implemented";
@@ -427,13 +428,15 @@ std::string	Server::handleGet(int &client_fd, locationInfo &location){
 	if (!request.file_path.empty()){
 		whole_path = location.root + request.file_path;
 		if (checkIsDirectory(whole_path) == 1){
-			if (this->servers[request.server_fd].locations.find(request.path) == this->servers[request.server_fd].locations.end())
-				this->client_requests[client_fd].status_code = 404;
-				return (handleError(404, this->client_requests[client_fd].server_fd));
-		}
-		else{
-			locationInfo new_location = *(this->servers[request.server_fd].locations[request.path]);
-			return (this->handleGet(client_fd, new_location));
+			std::map<std::string, locationInfo *>::iterator it;
+			it = this->servers[request.server_fd].locations.find(request.path);
+			if (it != this->servers[request.server_fd].locations.end()){
+				if (it->second->autoindex == true){
+					return (generateAutoindex(client_fd, request.path, whole_path));
+				}
+			}
+			this->client_requests[client_fd].status_code = 404;
+			return (handleError(404, this->client_requests[client_fd].server_fd));
 		}
 	}
 	else if (!location.redirect_address.empty()){
@@ -462,7 +465,6 @@ std::string	Server::handleGet(int &client_fd, locationInfo &location){
  * "multipart/form-data" will save the file in the upload directory
  */
 std::string	Server::handlePost(int &client_fd, locationInfo &location){
-	std::cout << "HANDLE POST" << std::endl;
 	requestData request = this->client_requests[client_fd];
 	std::string::size_type content_type = request.header.find("Content-Type: ");
 
@@ -470,20 +472,32 @@ std::string	Server::handlePost(int &client_fd, locationInfo &location){
 		this->client_requests[client_fd].status_code = 400;
 		return (this->handleError(400, this->client_requests[client_fd].server_fd));
 	}
+
+	if (location.max_body_size_set == 1){
+		std::string content = this->client_requests[client_fd].body;
+		if (content.size() > location.max_body_size){
+			this->client_requests[client_fd].status_code = 413;
+			return (this->handleError(413, this->client_requests[client_fd].server_fd));
+		}
+	}
 	
 	std::string content_type_value = request.header.substr(content_type + 14, request.header.find("\r\n", content_type) - content_type - 14);
-	std::cout << "Header value: " << content_type_value << std::endl;
 	
 	if (content_type_value.find("multipart/form-data") == std::string::npos &&
 		 content_type_value != "text/plain"){
+	}
+
+	if (content_type_value == "text/plain"){
+		return (handlePostText(client_fd));
+	}
+
+	else if (content_type_value.find("multipart/form-data") != std::string::npos){
+		return (handleUpload(client_fd, location));
+	}
+	else{
 		this->client_requests[client_fd].status_code = 415;
 		return (this->handleError(415, this->client_requests[client_fd].server_fd));
 	}
-	std::cout << this->client_requests[client_fd].whole_request << std::endl;
-	
-	std::cout << "Upload Directory: " << location.upload_path << std::endl;
-	std::cout << "root:" << location.root << std::endl;
-	return ("");
 }
 
 std::string	Server::handlePut(int &client_fd, locationInfo &location){
@@ -571,4 +585,44 @@ std::string	Server::generateAutoindex(int &client_fd, std::string &route, std::s
 		}
 		res += "</table></body>\n</html>";
 		return (res);
+}
+
+std::string	Server::handleUpload(int &client_fd, locationInfo &location){
+
+	std::string upload_dir = location.root + location.upload_path;
+	if (DEBUG)
+		std::cout << "Upload Directory: " << upload_dir << std::endl;
+	if (checkIsDirectory(upload_dir) != 1){
+		std::cout << COLOR_RED << "Error. Upload directory not found" << COLOR_RESET << std::endl;
+		this->client_requests[client_fd].status_code = 500;
+		return (this->handleError(500, this->client_requests[client_fd].server_fd));
+	}
+
+	DIR *dir = opendir(upload_dir.c_str());
+	if (dir == NULL){
+		std::cout << COLOR_RED << "Error. Unable to open upload directory" << COLOR_RESET << std::endl;
+		this->client_requests[client_fd].status_code = 500;
+		return (this->handleError(500, this->client_requests[client_fd].server_fd));
+	}
+	std::string::size_type start_pos = this->client_requests[client_fd].header.find("boundary=");
+	std::string boundary_value = "--" + this->client_requests[client_fd].header.substr(start_pos + 9, 
+		this->client_requests[client_fd].header.find("\r\n", start_pos) - start_pos - 9);
+	
+	std::vector<formData> form_datas = parseUpload(this->client_requests[client_fd].body, boundary_value);
+	for (size_t i =0; i < form_datas.size(); i ++){
+		if (storeFile(upload_dir, form_datas[i]) == 0){
+			this->client_requests[client_fd].status_code = 500;
+			return (this->handleError(500, this->client_requests[client_fd].server_fd));
+		}
+	}
+	this->client_requests[client_fd].status_code = 200;
+	return ("");
+}
+
+std::string Server::handlePostText(int &client_fd){
+	std::string content = this->client_requests[client_fd].body;
+	this->database << content << std::endl;
+	this->database.flush();
+	this->client_requests[client_fd].status_code = 200;
+	return ("");
 }
