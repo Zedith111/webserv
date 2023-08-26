@@ -19,6 +19,7 @@
 
 # include <vector>
 # include <sys/select.h>
+# include <cstdio>
 
 # define BUFFER_SIZE 1024
 
@@ -31,7 +32,8 @@ struct requestData{
 	std::string path;
 	std::string file_path;
 	std::string body;
-	std::string contentLength;
+	std::string::size_type contentLength;
+	char **envp;
 };
 
 class Server{
@@ -52,6 +54,8 @@ class Server{
 		std::string		handleError(int status_code, int server_fd);
 		int				checkHost(std::string &header, std::string &server_name);
 
+		std::string 	handleCGI(int &client_fd, serverConf &server, std::string &method);
+
 		std::string		handleGet(int &client_fd, locationInfo &location);
 		std::string		handlePost(int &client_fd, locationInfo &location);
 		std::string		handlePut(int &client_fd, locationInfo &location);
@@ -60,7 +64,7 @@ class Server{
 
 		std::string		checkDirectoryRoute(int server_fd, std::string &path);
 		std::string		generateAutoindex(int &client_fd, std::string &route, std::string &file_path);
-		std::string		handleUpload(int &client_fd, locationInfo &location);
+		std::string		handleUpload(int &client_fd, locationInfo &location, int method);
 		std::string 	handlePostText(int &client_fd);
 	public:
 		Server();

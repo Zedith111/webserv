@@ -37,7 +37,8 @@ class ConfigParser{
 		int	parseServerName(size_t &current, serverConf *current_conf);
 		int	parseRoot(size_t &current, serverConf *current_conf);
 		int	parseErrorPages(size_t &current, serverConf *current_conf);
-		int parseCGI(size_t &current, serverConf *current_conf);
+		int parseCGIBin(size_t &current, serverConf *current_conf);
+		int parseCGIHandler(size_t &current, serverConf *current_conf);
 
 		//Location Block Parsing Functions
 		int	parseAutoindex(size_t &current, locationInfo *current_loc);

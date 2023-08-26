@@ -19,6 +19,8 @@
 Server::Server(){
 	// //Add reason phrase
 	this->reason_phrases[200] = "OK";
+	this->reason_phrases[201] = "Created";
+	this->reason_phrases[204] = "No Content";
 	this->reason_phrases[301] = "Moved Permanently";
 	this->reason_phrases[400] = "Bad Request";
 	this->reason_phrases[403] = "Forbidden";
@@ -205,7 +207,7 @@ void	Server::handleConnection(int socket_fd){
 			return ;
 		}
 		if (bytes_read < 0){
-			std::cout << "Error. recv failed at " << socket_fd << std::endl;
+			std::cout << "Error. recv failed at " << socket_fd << ". " << strerror(errno) <<  std::endl;
 			this->client_responses[socket_fd] = this->handleError(500, this->client_requests[socket_fd].server_fd);
 			this->client_requests[socket_fd].status_code = 500;
 			sendResponse(socket_fd);
@@ -224,7 +226,7 @@ void	Server::handleConnection(int socket_fd){
 void		Server::handleRequest(int socket_fd){
 	std::string header = this->client_requests[socket_fd].whole_request.substr(0, this->client_requests[socket_fd].whole_request.find("\r\n\r\n"));
 	std::string body = this->client_requests[socket_fd].whole_request.substr(this->client_requests[socket_fd].whole_request.find("\r\n\r\n") + 4);
-	int contentLength = this->client_requests[socket_fd].whole_request.length();
+	size_t contentLength = body.length();
 	this->client_requests[socket_fd].header = header;
 	this->client_requests[socket_fd].body = body;
 	this->client_requests[socket_fd].contentLength = contentLength;
@@ -234,7 +236,7 @@ void		Server::handleRequest(int socket_fd){
 	pos ++;
 	std::string path = header.substr(pos, header.find(' ', pos) - pos);
 	this->client_requests[socket_fd].path = path;
-	
+
 	int	server_fd = this->client_requests[socket_fd].server_fd;
 	if (DEBUG){
 		std::cout << "Request Header: " << std::endl << header << std::endl;
@@ -274,6 +276,46 @@ void		Server::handleRequest(int socket_fd){
 		else
 			this->client_requests[socket_fd].file_path = file_path;
 	}
+
+	//Check for the content-length exceed the limit
+	if (this->servers[server_fd].locations[path]->max_body_size_set == 1){
+		if (this->client_requests[socket_fd].contentLength > this->servers[server_fd].locations[path]->max_body_size){
+			std::cout << COLOR_RED << "Error. Content-Length exceed limit" << COLOR_RESET << std::endl;
+			this->client_responses[socket_fd] = this->handleError(413, this->client_requests[socket_fd].server_fd);
+			this->client_requests[socket_fd].status_code = 413;
+			return ;
+		}
+	}
+	
+	//Check if is cgi script
+	if (!this->client_requests[socket_fd].file_path.empty()){
+		std::string::size_type extension_pos = this->client_requests[socket_fd].file_path.find_last_of('.');
+		if (extension_pos != std::string::npos){
+			std::string extension = this->client_requests[socket_fd].file_path.substr(extension_pos);
+			std::string script_file = this->client_requests[socket_fd].file_path.substr(1);
+			serverConf conf = this->servers[this->client_requests[socket_fd].server_fd];
+			std::multimap<std::string, std::string>::iterator it = conf.cgi.find(extension);
+			if (it != conf.cgi.end()){
+				if (method != "GET" && method != "POST"){
+					std::cout << COLOR_RED << "Error. Method " << method << " is not allowed"  << COLOR_RESET << std::endl;
+					this->client_responses[socket_fd] = this->handleError(405, this->client_requests[socket_fd].server_fd);
+					this->client_requests[socket_fd].status_code = 405;
+					return ;
+				}
+				// std::cout << conf.root << std::endl;
+				// std::cout << conf.cgi_bin << std::endl;
+				// std::cout << method << std::endl;
+				if (DEBUG){
+					std::cout << "extension: " << extension << std::endl;
+					std::cout << "script_file: " << script_file << std::endl;
+					std::cout << "Handler: " << it->second << std::endl;
+				}
+				this->client_responses[socket_fd] = this->handleCGI(socket_fd, conf, method);
+				return ;
+			}
+		}
+	}
+
 
 	//Check if Method can be handle
 	METHOD request_method = getMethod(method, this->servers[server_fd].locations[path]->limit_except);
@@ -403,6 +445,18 @@ int Server::checkHost(std::string &header, std::string &server_name){
 	return (0);
 }
 
+std::string Server::handleCGI(int &client_fd, serverConf &server, std::string &method){
+	(void) server;
+	(void) method;
+	std::cout << "HANDLE CGI" << std::endl;
+	std::cout << this->client_requests[client_fd].whole_request << std::endl;
+	//find respective script in cgi bin
+				//use acess to check whenther file is executable(R_Ok, XOK)
+	return ("");
+}
+
+
+
 /**
  * @brief Read the file path of a target location and return the body of response
  * Handle get request, will follow order below
@@ -488,11 +542,13 @@ std::string	Server::handlePost(int &client_fd, locationInfo &location){
 	}
 
 	if (content_type_value == "text/plain"){
+		std::cout << "Handle text plain" << std::endl;
 		return (handlePostText(client_fd));
 	}
 
 	else if (content_type_value.find("multipart/form-data") != std::string::npos){
-		return (handleUpload(client_fd, location));
+		std::cout << "Handle upload" << std::endl;
+		return (handleUpload(client_fd, location, 0));
 	}
 	else{
 		this->client_requests[client_fd].status_code = 415;
@@ -500,44 +556,94 @@ std::string	Server::handlePost(int &client_fd, locationInfo &location){
 	}
 }
 
+/**
+ * @brief A PUT request is handled the almost the same way as POST request. 
+ * The only difference is that PUT will overwrite the file if it exist and return 200 when overwrite happen
+ */
 std::string	Server::handlePut(int &client_fd, locationInfo &location){
-	(void)client_fd;(void)location;
-	// std::stringstream buffer;
-	// buffer << file.rdbuf();
-	// std::string content = buffer.str();
+	requestData request = this->client_requests[client_fd];
+	std::string::size_type content_type = request.header.find("Content-Type: ");
 
-	// std::string res = "HTTP/1.1 200 OK\r\n"
-	// 						"Content-Type: text/html\r\n"
-	// 						"Content-Length: " + std::to_string(content.length()) + "\r\n"
-	// 						"\r\n" + content;
-	return ("");
+	if (content_type == std::string::npos){
+		this->client_requests[client_fd].status_code = 400;
+		return (this->handleError(400, this->client_requests[client_fd].server_fd));
+	}
+
+	if (location.max_body_size_set == 1){
+		std::string content = this->client_requests[client_fd].body;
+		if (content.size() > location.max_body_size){
+			this->client_requests[client_fd].status_code = 413;
+			return (this->handleError(413, this->client_requests[client_fd].server_fd));
+		}
+	}
+	
+	std::string content_type_value = request.header.substr(content_type + 14, request.header.find("\r\n", content_type) - content_type - 14);
+	
+	if (content_type_value.find("multipart/form-data") == std::string::npos &&
+		 content_type_value != "text/plain"){
+	}
+
+	if (content_type_value == "text/plain"){
+		std::string content = this->client_requests[client_fd].body;
+		std::ifstream file("database.txt");
+		std::string line;
+		std::string whole_line;
+		while (std::getline(file, content)){
+			whole_line += line;
+		}
+		if (whole_line.find(content) != std::string::npos){
+			std::cout << "Repeat Request" << std::endl;
+			this->client_requests[client_fd].status_code = 200;
+			return ("");
+		}
+		else{
+			std::cout << "Not Repeated Request" << std::endl;
+			std::cout << "Handle Text Plain" << std::endl;
+			return (handlePostText(client_fd));
+		}
+	}
+
+	else if (content_type_value.find("multipart/form-data") != std::string::npos){
+		return (handleUpload(client_fd, location, 1));
+	}
+	else{
+		this->client_requests[client_fd].status_code = 415;
+		return (this->handleError(415, this->client_requests[client_fd].server_fd));
+	}
 }
 
 std::string	Server::handleHead(int &client_fd, locationInfo &location){
-	(void)client_fd;(void)location;
-	// std::stringstream buffer;
-	// buffer << file.rdbuf();
-	// std::string content = buffer.str();
+	std::cout << "Handle Head" << std::endl;
 
-	// std::string res = "HTTP/1.1 200 OK\r\n"
-	// 						"Content-Type: text/html\r\n"
-	// 						"Content-Length: " + intToString(content.length()) + "\r\n"
-	// 						"\r\n" + content;
-	// return (res);
+	std::string whole_path;
+	if (!this->client_requests[client_fd].file_path.empty()){
+		whole_path = location.root + this->client_requests[client_fd].file_path;
+	}
+	else{
+		whole_path = location.root + "/" + location.index;
+	}
+	std::ifstream file(whole_path.c_str());
+	if (!file.is_open()){
+		std::cout << COLOR_RED << "Error. File not found. " << whole_path << COLOR_RESET << std::endl;
+		this->client_requests[client_fd].status_code = 404;
+		return ("");
+	}
+	this->client_requests[client_fd].status_code = 200;
+	file.close();
 	return ("");
 }
 
 std::string	Server::handleDelete(int &client_fd, locationInfo &location){
-	(void)client_fd;(void)location;
-	// std::stringstream buffer;
-	// buffer << file.rdbuf();
-	// std::string content = buffer.str();
-
-	// std::string res = "HTTP/1.1 200 OK\r\n"
-	// 						"Content-Type: text/html\r\n"
-	// 						"Content-Length: " + intToString(content.length()) + "\r\n"
-	// 						"\r\n" + content;
-	// return (res);
+	if (this->client_requests[client_fd].file_path.empty()){
+		this->client_requests[client_fd].status_code = 404;
+		return (handleError(404, this->client_requests[client_fd].server_fd));
+	}
+	std::string whole_path = location.root + this->client_requests[client_fd].file_path;
+	if (std::remove(whole_path.c_str()) != 0){
+		this->client_requests[client_fd].status_code = 404;
+		return (handleError(404, this->client_requests[client_fd].server_fd));
+	}
+	this->client_requests[client_fd].status_code = 204;
 	return ("");
 }
 
@@ -587,7 +693,10 @@ std::string	Server::generateAutoindex(int &client_fd, std::string &route, std::s
 		return (res);
 }
 
-std::string	Server::handleUpload(int &client_fd, locationInfo &location){
+/**
+ * @brief Method is used to determine whether to create the file or overwrite the file. 0 for post, 1 for put
+ */
+std::string	Server::handleUpload(int &client_fd, locationInfo &location, int method){
 
 	std::string upload_dir = location.root + location.upload_path;
 	if (DEBUG)
@@ -608,14 +717,24 @@ std::string	Server::handleUpload(int &client_fd, locationInfo &location){
 	std::string boundary_value = "--" + this->client_requests[client_fd].header.substr(start_pos + 9, 
 		this->client_requests[client_fd].header.find("\r\n", start_pos) - start_pos - 9);
 	
-	std::vector<formData> form_datas = parseUpload(this->client_requests[client_fd].body, boundary_value);
-	for (size_t i =0; i < form_datas.size(); i ++){
-		if (storeFile(upload_dir, form_datas[i]) == 0){
-			this->client_requests[client_fd].status_code = 500;
-			return (this->handleError(500, this->client_requests[client_fd].server_fd));
+	formData form_data = parseUpload(this->client_requests[client_fd].body, boundary_value);
+	if (method == 1){
+		struct dirent *ent;
+		while ((ent = readdir(dir)) != NULL) {
+        	if (std::strcmp(ent->d_name, form_data.filename.c_str()) == 0) {
+            	std::cout << "Repeated file: " << form_data.filename << std::endl;
+				this->client_requests[client_fd].status_code = 200;
+				return ("");
+			}
 		}
 	}
-	this->client_requests[client_fd].status_code = 200;
+	if (storeFile(upload_dir, form_data) == 0){
+		closedir(dir);
+		this->client_requests[client_fd].status_code = 500;
+		return (this->handleError(500, this->client_requests[client_fd].server_fd));
+	}
+	this->client_requests[client_fd].status_code = 201;
+	closedir(dir);
 	return ("");
 }
 
@@ -623,6 +742,6 @@ std::string Server::handlePostText(int &client_fd){
 	std::string content = this->client_requests[client_fd].body;
 	this->database << content << std::endl;
 	this->database.flush();
-	this->client_requests[client_fd].status_code = 200;
+	this->client_requests[client_fd].status_code = 201;
 	return ("");
 }

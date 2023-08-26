@@ -16,25 +16,22 @@ To add new error page
     file
     index
     autoindex
+        nesting directory with autoindex
     redirection
 
+## Post
+    Duplicate upload of same file
+
 # Parser 
+    When no root and cgi bin specified, use current directory as root
 
 # Handle request
-    under what circumstances will the form-data contain multiple disposition or multiple boundary
-    switch content length to usngined long
- 
-    max_body_size(check content-length first, and read both)
-    check nesting directory with autoindex
-        test_dir/test->autoindex on
-    handle method has additional parameter to check whether need to check file size (for post and put only)
-    204 No response
-    Fatest method to read file content and return string
-    unkonwon request
-    when passing route, check for root directory, if have index variable
+    fix when recv failed
+    fix when select bad file descriptor(google serach :continue when select() failed)
+    check is cgi request
+    execute cgi
+    when select failed, handle properly,dont quit
     when not member function failed, close socket and clear in FdSet
-    sent bad request
-    check http version
 
 Location block before server block
 Mulitiple root present
@@ -71,3 +68,29 @@ host cat etc/hosts
 Add ipv6 support
 Multiple worker thread
 Handle multiple request type
+
+
+# CGI env
+GATEWAY_INTERFACE=CGI/1.1
+SERVER_NAME=Get from config
+SERVER_SOFTWARE=webserv
+SERVER_PROTOCOL=HTTP/1.1
+SERVER_PORT= get from requet
+REQUEST_METHOD=pass down
+PATH_INFO=path to cgi handler
+PATH_TRANSLATED=actual path to cgi handler
+SCRIPT_NAME=path to cgi handler
+DOCUMENT_ROOT= get from config
+QUERY_STRING=empty
+REMOTE_HOST= get from request(HOST)
+REMOTE_ADDR= get from request
+CONTENT_TYPE= */*
+CONTENT_LENGTH= get from request
+
+# CGI script
+print.cpp -> print env -> compile as print.cgi
+https://www.youtube.com/watch?v=cP1fN6xf3nI&ab_channel=nptelhrdv
+
+https://w3.cs.jmu.edu/kirkpams/OpenCSF/Books/csf/html/Extended4CGI.html
+
+https://www.oreilly.com/openbook/cgi/ch02_02.html

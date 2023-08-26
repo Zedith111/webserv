@@ -24,7 +24,7 @@ struct formData{
 };
 
 METHOD	getMethod(std::string &method, std::vector<std::string> &limit_except);
-std::vector<formData>	parseUpload(std::string &body, std::string &boundary);
+formData	parseUpload(std::string &body, std::string &boundary);
 int	storeFile(std::string &directory_path, formData &form_data);
 
 

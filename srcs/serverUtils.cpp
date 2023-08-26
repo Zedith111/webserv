@@ -36,8 +36,8 @@ METHOD	getMethod(std::string &method, std::vector<std::string> &limit_except){
  * @brief Parse the body of a POST request with multipart/form-data encoding. Separate
  * the data and put into a vector of formData struct.
  */
-std::vector<formData>	parseUpload(std::string &body, std::string &boundary){
-	std::vector<formData>	formDataList;
+formData	parseUpload(std::string &body, std::string &boundary){
+	formData form_data;
 	std::string::size_type current_pos = body.find(boundary);
 	while (current_pos != std::string::npos){
 		std::string::size_type next_pos = body.find(boundary, current_pos + boundary.length());
@@ -50,8 +50,6 @@ std::vector<formData>	parseUpload(std::string &body, std::string &boundary){
 
 		std::string::size_type disposition_pos = data.find("Content-Disposition: form-data;");
 		if (disposition_pos != std::string::npos){
-			formData form_data;
-
 			std::string::size_type name_pos = data.find("name=\"", disposition_pos);
 			if (name_pos != std::string::npos){
 				name_pos += 6;
@@ -66,11 +64,9 @@ std::vector<formData>	parseUpload(std::string &body, std::string &boundary){
 				form_data.filename = data.substr(filename_pos, filename_pos_end - filename_pos);
 			}
 			form_data.data = data.substr(data.find("\r\n\r\n") + 4);
-			formDataList.push_back(form_data);
 		}
-		
 	}
-	return (formDataList);
+	return (form_data);
 }
 
 int	storeFile(std::string &directory_path, formData &form_data){
