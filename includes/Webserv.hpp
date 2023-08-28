@@ -68,7 +68,7 @@ struct locationInfo{
  * @param server_name The name of the server. Can be any string.
  * @param root The root directory of the server. All files will relative to this directory.
  * @param error_pages A map of error pages. The key is the status code, and the value is the path to the error page.
- * @param cgi A multimap of cgi. The key is the path to the cgi, and the value is the path to the executable. Multiple cgi extension
+ * @param cgi A multimap of cgi. The key is the path to the cgi bin where the script locate, and the value is the path to the executable. Multiple cgi extension
  * can be mapped to the same executable.
  * @param locations A map of locationInfo. The key is the location path, and the value is the locationInfo struct.
  * 
@@ -78,7 +78,6 @@ struct serverConf{
 	std::vector<std::string>	port_number;
 	std::string server_name;
 	std::string root;
-	std::string cgi_bin;
 	std::map<int, std::string>	error_pages;
 	std::multimap<std::string, std::string> cgi;
 	std::map<std::string, locationInfo *> locations;

@@ -22,11 +22,20 @@ To add new error page
 ## Post
     Duplicate upload of same file
 
+# To Do
+    Improve path finding
+    Try with python cgi
+    Do env
+
+
+
 # Parser 
+    Rework cgi parser
     When no root and cgi bin specified, use current directory as root
 
 # Handle request
-    finish cgi
+    Improve path finding
+    new cgi request struct
     fix leak when invalid cgi_bin path
     fix when recv failed
     fix when select bad file descriptor(google serach :continue when select() failed)
@@ -34,6 +43,8 @@ To add new error page
     execute cgi
     when select failed, handle properly,dont quit
     when not member function failed, close socket and clear in FdSet
+    gprod
+    flush
 
 Location block before server block
 Mulitiple root present
@@ -123,3 +134,19 @@ Command: <INPUT TYPE="text" NAME="command" SIZE=40>
 
 http://some.machine/cgi-bin/display.pl/cgi/cgi_doc.txt
 Since the server knows that display.pl is the name of the program, the string "/cgi/cgi_doc.txt" is stored in the environment variable PATH_INFO. Meanwhile, the variable PATH_TRANSLATED is also set, which maps the information stored in PATH_INFO to the document root directory (e.g., /usr/local/etc/httpd/ public/cgi/cgi-doc.txt).
+
+
+change handle method to class, handler inherit a base class which contain handleError function
+
+
+Path finding
+    -Check for particular server, through port(new map to map socket_fd to server)
+    -Check for cgi path
+    -Check for direct access
+    -Check for location path
+        -Check for max file size
+
+
+
+
+https://github.com/cclaude42/webserv/blob/master/srcs/cgi/CgiHandler.cpp

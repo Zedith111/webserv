@@ -21,11 +21,13 @@
 # include <sys/select.h>
 # include <cstdio>
 
+
 # define BUFFER_SIZE 1024
 
 struct requestData{
 	int server_fd;
 	int status_code;
+	std::string port;
 	std::string whole_request;
 	std::string header;
 	METHOD method;
@@ -41,9 +43,11 @@ class Server{
 		std::vector<serverConf *>	confs;
 		std::map<int, serverConf>	servers;
 		fd_set						read_fd, write_fd;
+		std::map<int, std::string>	sockets_port;
 		std::map<int, requestData>	client_requests;
 		std::map<int, std::string>	client_responses;
 		std::map<int, std::string>	reason_phrases;
+		
 		std::ofstream				database;
 		
 		int				acceptNewConnection(int socket_fd);

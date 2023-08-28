@@ -82,6 +82,7 @@ int	Server::init(std::vector<serverConf *> confs){
 				freeaddrinfo(res);
 				return (0);
 			}
+			this->sockets_port[socket_fd] = conf.port_number[i];
 			std::cout << COLOR_GREEN << "Socket " << socket_fd << " created for port " << conf.port_number[i] << COLOR_RESET << std::endl;
 			this->servers[socket_fd] = conf;
 
@@ -168,7 +169,6 @@ void	Server::run(){
 			handleRequest(i);
 			sendResponse(i);
 			FD_CLR(i, &this->write_fd);
-
 		}
 	}
 }
@@ -184,8 +184,11 @@ int	Server::acceptNewConnection(int socket_fd){
 		return (-1);
 	}
 	this->client_requests[new_socket].server_fd = socket_fd;
-	if (DEBUG)
-		std::cout << "New client joined at " << new_socket << std::endl;
+	this->client_requests[new_socket].port = this->sockets_port[socket_fd];
+	if (DEBUG){
+		std::cout << "New client joined at socket " << new_socket << std::endl;
+		std::cout << "Join at port " << this->sockets_port[socket_fd] << std::endl;
+	}
 	fcntl(new_socket, F_SETFL, O_NONBLOCK);
 	return (new_socket);
 }
@@ -446,13 +449,73 @@ int Server::checkHost(std::string &header, std::string &server_name){
 }
 
 std::string Server::handleCGI(int &client_fd, serverConf &server, std::string &method){
-	(void) server;
 	(void) method;
+	(void) server;
 	std::cout << "HANDLE CGI" << std::endl;
-	std::cout << this->client_requests[client_fd].whole_request << std::endl;
-	//find respective script in cgi bin
-				//use acess to check whenther file is executable(R_Ok, XOK)
-	return ("");
+
+	// std::string cgi_path = server.cgi_bin + this->client_requests[client_fd].file_path;
+	std::string cgi_path = this->client_requests[client_fd].file_path;
+
+	if (access(cgi_path.c_str(), R_OK | X_OK) != 0){
+		std::cout << COLOR_RED << "Error: Unable to access cgi script: " << cgi_path << COLOR_RESET << std::endl;
+		this->client_requests[client_fd].status_code = 500;
+		return (this->handleError(500, this->client_requests[client_fd].server_fd));
+	}
+
+	int stdin = dup(STDIN_FILENO);
+	int stdout = dup(STDOUT_FILENO);
+
+	//tempIn is used to store the duplicate script, tempOut is used to store the output
+	FILE *tempIn = std::tmpfile();
+	FILE *tempOut = std::tmpfile();
+	int fdIn = fileno(tempIn);
+	int fdOut = fileno(tempOut);
+	std::string res;
+	
+	//Write the script to tempIn
+	FILE *script = fopen(cgi_path.c_str(), "r");
+	if (script == NULL){
+		std::cout << COLOR_RED << "Error: Unable to open cgi script: " << cgi_path << COLOR_RESET << std::endl;
+		this->client_requests[client_fd].status_code = 500;
+		return (this->handleError(500, this->client_requests[client_fd].server_fd));
+	}
+
+	char buffer[1024];
+	int bytes_read;
+	while ((bytes_read = std::fread(buffer, 1, 1024, script)) > 0){
+		std::fwrite(buffer, 1, bytes_read, tempIn);
+	}
+	fclose(script);
+	std::rewind(tempIn);
+
+	pid_t child = fork();
+	if (child < 0){
+		std::cout << COLOR_RED << "Error: Unable to fork" << COLOR_RESET << std::endl;
+		fclose(tempIn);
+		fclose(tempOut);
+		this->client_requests[client_fd].status_code = 500;
+		return (this->handleError(500, this->client_requests[client_fd].server_fd));
+	}
+	if (child == 0){
+		dup2(fdIn, STDIN_FILENO);
+		dup2(fdOut, STDOUT_FILENO);
+		execve(cgi_path.c_str(), NULL, NULL);
+	}
+	else{
+		int status;
+		waitpid(child, &status, 0);
+		char buffer[1024];
+		std::rewind(tempOut);
+		while ((bytes_read = std::fread(buffer, 1, 1024, tempOut)) > 0){
+			res.append(buffer, bytes_read);
+		}
+	}
+	dup2(stdin, STDIN_FILENO);
+	dup2(stdout, STDOUT_FILENO);
+	fclose(tempIn);
+	fclose(tempOut);
+
+	return (res);
 }
 
 

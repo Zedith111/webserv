@@ -53,6 +53,11 @@ std::ostream&	operator<<(std::ostream& os, const serverConf& obj){
 	for (error_iter = obj.error_pages.begin(); error_iter != obj.error_pages.end(); error_iter++){
 		os << "\t" << error_iter->first << ": " << error_iter->second << std::endl;
 	}
+	os << "CGI Bin: " << std::endl;
+	std::multimap<std::string, std::string>::const_iterator cgi_iter;
+	for (cgi_iter = obj.cgi.begin(); cgi_iter != obj.cgi.end(); cgi_iter++){
+		os << "\t" << cgi_iter->first << ": " << cgi_iter->second << std::endl;
+	}
 	std::map<std::string, locationInfo *>::const_iterator location_iter;
 	for (location_iter = obj.locations.begin(); location_iter != obj.locations.end(); location_iter++){
 		os << "Route: " << location_iter->first << std::endl;
