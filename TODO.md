@@ -26,6 +26,8 @@ To add new error page
     When no root and cgi bin specified, use current directory as root
 
 # Handle request
+    finish cgi
+    fix leak when invalid cgi_bin path
     fix when recv failed
     fix when select bad file descriptor(google serach :continue when select() failed)
     check is cgi request
@@ -94,3 +96,30 @@ https://www.youtube.com/watch?v=cP1fN6xf3nI&ab_channel=nptelhrdv
 https://w3.cs.jmu.edu/kirkpams/OpenCSF/Books/csf/html/Extended4CGI.html
 
 https://www.oreilly.com/openbook/cgi/ch02_02.html
+
+write->query string to some file
+
+# CGI 
+Add handler "cgi-dir" extension
+better method to detect CGI script
+Check method
+    Get->get query string
+    Post->in body
+
+<HTML>
+<HEAD><TITLE>Simple Form!</TITLE></HEAD>
+<BODY>
+<H1>Simple Form!</H1>
+<HR>
+<FORM ACTION="/cgi-bin/unix.pl" METHOD="GET">
+Command: <INPUT TYPE="text" NAME="command" SIZE=40>
+<P>
+<INPUT TYPE="submit" VALUE="Submit Form!">
+<INPUT TYPE="reset"  VALUE="Clear Form">
+</FORM>
+<HR>
+</BODY>
+</HTML>
+
+http://some.machine/cgi-bin/display.pl/cgi/cgi_doc.txt
+Since the server knows that display.pl is the name of the program, the string "/cgi/cgi_doc.txt" is stored in the environment variable PATH_INFO. Meanwhile, the variable PATH_TRANSLATED is also set, which maps the information stored in PATH_INFO to the document root directory (e.g., /usr/local/etc/httpd/ public/cgi/cgi-doc.txt).
