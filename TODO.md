@@ -19,10 +19,8 @@ Check leak
     Duplicate upload of same file
 
 # To Do
-    Improve path finding
-    before send printout response
+    Do cgi
     Try with python cgi
-    add 200 to hello.cgi
     Do env
 
 
@@ -43,8 +41,7 @@ Check leak
     when not member function failed, close socket and clear in FdSet
     gprod
     flush
-    fcntl ?
-
+    
 Location block before server block
 Mulitiple root present
 Check leak

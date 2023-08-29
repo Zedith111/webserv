@@ -141,6 +141,8 @@ void	Server::run(){
 			std::cout << COLOR_RED << "Error. select failed. " << strerror(errno) << COLOR_RESET << std::endl;
 			return ;
 		}
+		if (select_val == 0)
+			continue;
 
 		//Reading Request
 		for (int i = 0; i < FD_SETSIZE; i++){
@@ -268,7 +270,18 @@ void		Server::handleRequest(int socket_fd){
 	}
 
 	if(checkCGIRequest(route, this->servers[server_fd], this->client_requests[socket_fd].file_path)){
+		if (method != "GET" && method != "POST"){
+			std::cout << COLOR_RED << "Error. Method " << method << " is not allowed for cgi"  << COLOR_RESET << std::endl;
+			this->client_responses[socket_fd] = this->handleError(405, this->client_requests[socket_fd].server_fd);
+			this->client_requests[socket_fd].status_code = 405;
+			return ;
+		}
+		this->client_requests[socket_fd].is_cgi = 1;
 		this->client_responses[socket_fd] = handleCGI(socket_fd);
+		if (method == "GET")
+			this->client_requests[socket_fd].method = GET;
+		else
+			this->client_requests[socket_fd].method = POST;
 		return ;
 	}
 
@@ -300,36 +313,6 @@ void		Server::handleRequest(int socket_fd){
 		}
 	}
 	
-	//Check if is cgi script
-	if (!this->client_requests[socket_fd].file_path.empty()){
-		std::string::size_type extension_pos = this->client_requests[socket_fd].file_path.find_last_of('.');
-		if (extension_pos != std::string::npos){
-			std::string extension = this->client_requests[socket_fd].file_path.substr(extension_pos);
-			std::string script_file = this->client_requests[socket_fd].file_path.substr(1);
-			serverConf conf = this->servers[this->client_requests[socket_fd].server_fd];
-			std::multimap<std::string, std::string>::iterator it = conf.cgi.find(extension);
-			if (it != conf.cgi.end()){
-				if (method != "GET" && method != "POST"){
-					std::cout << COLOR_RED << "Error. Method " << method << " is not allowed"  << COLOR_RESET << std::endl;
-					this->client_responses[socket_fd] = this->handleError(405, this->client_requests[socket_fd].server_fd);
-					this->client_requests[socket_fd].status_code = 405;
-					return ;
-				}
-				// std::cout << conf.root << std::endl;
-				// std::cout << conf.cgi_bin << std::endl;
-				// std::cout << method << std::endl;
-				if (DEBUG){
-					std::cout << "extension: " << extension << std::endl;
-					std::cout << "script_file: " << script_file << std::endl;
-					std::cout << "Handler: " << it->second << std::endl;
-				}
-				this->client_responses[socket_fd] = this->handleCGI(socket_fd);
-				return ;
-			}
-		}
-	}
-
-
 	//Check if Method can be handle
 	METHOD request_method = getMethod(method, this->servers[server_fd].locations[route]->limit_except);
 	this->client_requests[socket_fd].method = request_method;
@@ -360,25 +343,27 @@ void		Server::handleRequest(int socket_fd){
  * @brief Add header to the response body and sent it
  */
 void	Server::sendResponse(int socket_fd){
-	int status_code = this->client_requests[socket_fd].status_code;
-	std::string res = "HTTP/1.1 ";
-	res += intToString(status_code);
-	res += " ";
-	res += this->reason_phrases[status_code];
-	res += "\r\n";
-	if (status_code == 301){
-		res += "Location: ";
-		res += this->client_responses[socket_fd];
-		res += "\r\n\r\n";
+	std::string res;
+	if (!this->client_requests[socket_fd].is_cgi){
+		int status_code = this->client_requests[socket_fd].status_code;
+		res = "HTTP/1.1 ";
+		res += intToString(status_code);
+		res += " ";
+		res += this->reason_phrases[status_code];
+		res += "\r\n";
+		if (status_code == 301){
+			res += "Location: ";
+			res += this->client_responses[socket_fd];
+			res += "\r\n\r\n";
+		}
+		else{
+			res += "Content-Type: text/html\r\n";
+			res += "Content-Length: ";
+			res += intToString(this->client_responses[socket_fd].length());
+			res += "\r\n\r\n";
+		}
 	}
-	else{
-		res += "Content-Type: text/html\r\n";
-		res += "Content-Length: ";
-		res += intToString(this->client_responses[socket_fd].length());
-		res += "\r\n\r\n";
-		res += this->client_responses[socket_fd];
-	}
-	
+	res += this->client_responses[socket_fd];
 	int byteSend = send(socket_fd, res.c_str(), res.length(), 0);
 	if (byteSend < 0)
 		std::cout << COLOR_RED << "Error. Send failed at " << socket_fd << strerror(errno) << COLOR_RESET << std::endl;
@@ -461,10 +446,9 @@ int Server::checkHost(std::string &header, std::string &server_name){
 std::string Server::handleCGI(int &client_fd){
 	std::cout << "HANDLE CGI" << std::endl;
 
-	// std::string cgi_path = server.cgi_bin + this->client_requests[client_fd].file_path;
 	std::string cgi_path = this->client_requests[client_fd].file_path;
 
-	if (access(cgi_path.c_str(), R_OK | X_OK) != 0){
+	if (access(cgi_path.c_str(), R_OK| X_OK) != 0){
 		std::cout << COLOR_RED << "Error: Unable to access cgi script: " << cgi_path << COLOR_RESET << std::endl;
 		this->client_requests[client_fd].status_code = 500;
 		return (this->handleError(500, this->client_requests[client_fd].server_fd));

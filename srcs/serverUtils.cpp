@@ -37,8 +37,6 @@ METHOD	getMethod(std::string &method, std::vector<std::string> &limit_except){
  * Will also set the file_path to be the path of the cgi script.
  */
 int checkCGIRequest(std::string &path, serverConf &server, std::string &file_path){
-	std::cout << "Checking CGI request" << std::endl;
-
 	std::string::size_type extension_pos = path.find_last_of(".");
 	if (extension_pos == std::string::npos){
 		return (0);

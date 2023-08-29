@@ -40,6 +40,8 @@
  * @param contentLength The content length of the request.
  * 
  * The following param will only be used when cgi request detected.
+ * @param is_cgi Whether the request is cgi request. This will affect the sending process as no header will 
+ * be added
  * @param query_string The query string of the cgi request, will only be used when GET.
  * @param envp The environment variable which will be pass through when execute the cgi.
  */
@@ -55,9 +57,12 @@ struct requestData{
 	std::string body;
 	std::string::size_type contentLength;
 
+	int is_cgi;
 	std::string query_string;
 	char **envp;
 };
+
+
 
 class Server{
 	private:
