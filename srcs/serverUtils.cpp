@@ -33,6 +33,28 @@ METHOD	getMethod(std::string &method, std::vector<std::string> &limit_except){
 }
 
 /**
+ * @brief Check whether a request is a CGI request or not base on the server.
+ * Will also set the file_path to be the path of the cgi script.
+ */
+int checkCGIRequest(std::string &path, serverConf &server, std::string &file_path){
+	std::cout << "Checking CGI request" << std::endl;
+
+	std::string::size_type extension_pos = path.find_last_of(".");
+	if (extension_pos == std::string::npos){
+		return (0);
+	}
+	std::string::size_type query_string_pos = path.find_last_of("?");
+	std::string extension = path.substr(extension_pos, query_string_pos - extension_pos);
+
+	std::multimap<std::string, std::string>::iterator it = server.cgi.find(extension);
+	if (it == server.cgi.end()){
+		return (0);
+	}
+	file_path = it->second + "/" + path.substr(1, extension_pos - 1) + extension;
+	return (1);
+}
+
+/**
  * @brief Parse the body of a POST request with multipart/form-data encoding. Separate
  * the data and put into a vector of formData struct.
  */
@@ -69,6 +91,9 @@ formData	parseUpload(std::string &body, std::string &boundary){
 	return (form_data);
 }
 
+/**
+ * @brief Store the file in the upload_path specified in the location block.
+ */
 int	storeFile(std::string &directory_path, formData &form_data){
 	std::string file_path = directory_path + "/" + form_data.filename;
 	std::ofstream file(file_path.c_str());

@@ -24,6 +24,7 @@ struct formData{
 };
 
 METHOD	getMethod(std::string &method, std::vector<std::string> &limit_except);
+int checkCGIRequest(std::string &path, serverConf &server, std::string &file_path);
 formData	parseUpload(std::string &body, std::string &boundary);
 int	storeFile(std::string &directory_path, formData &form_data);
 

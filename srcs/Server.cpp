@@ -223,7 +223,10 @@ void	Server::handleConnection(int socket_fd){
 }
 
 /**
- * @brief Evaluate the request header and body.
+ * @brief Evaluate the request header and body. The order are as following
+ * 	1. Check if is cgi request
+ *  2. Check if is a direct file request
+ *  3. Check if in the location path
  * Write the response body to client_responses
  */
 void		Server::handleRequest(int socket_fd){
@@ -237,17 +240,17 @@ void		Server::handleRequest(int socket_fd){
 	int pos = header.find(' ');
 	std::string method = header.substr(0, pos);
 	pos ++;
-	std::string path = header.substr(pos, header.find(' ', pos) - pos);
-	this->client_requests[socket_fd].path = path;
+	std::string route = header.substr(pos, header.find(' ', pos) - pos);
+	this->client_requests[socket_fd].route = route;
 
 	int	server_fd = this->client_requests[socket_fd].server_fd;
 	if (DEBUG){
 		std::cout << "Request Header: " << std::endl << header << std::endl;
 		std::cout << "Request Body: " << std::endl << body << std::endl;
 		std::cout << "Method: " << method << std::endl;
-		std::cout << "Path: " << path << std::endl;
-		std::cout << "Path Root: " << this->servers[server_fd].locations[path]->root << std::endl;
-		std::cout << "Path Index: " << this->servers[server_fd].locations[path]->index << std::endl;
+		std::cout << "Route: " << route << std::endl;
+		std::cout << "Route Root: " << this->servers[server_fd].locations[route]->root << std::endl;
+		std::cout << "Route Index: " << this->servers[server_fd].locations[route]->index << std::endl;
 	}
 
 	if (!checkHost(this->client_requests[socket_fd].header, this->servers[server_fd].server_name)){
@@ -257,32 +260,39 @@ void		Server::handleRequest(int socket_fd){
 		return ;
 	}
 
-	if (path == "/favicon.ico"){
+	if (route == "/favicon.ico"){
 		std::cout << COLOR_YELLOW << "Favicon requested" << COLOR_RESET << std::endl;
 		this->client_responses[socket_fd] = this->handleError(404, this->client_requests[socket_fd].server_fd);
 		this->client_requests[socket_fd].status_code = 404;
 		return ;
 	}
 
+	if(checkCGIRequest(route, this->servers[server_fd], this->client_requests[socket_fd].file_path)){
+		this->client_responses[socket_fd] = handleCGI(socket_fd);
+		return ;
+	}
+
 	//Check if the path is valide. Will perform two check
 	//	First check for the path is exact match with what present in the location
-	//	If no, check for prefix match
+	//	If no, check for prefix match, and extract the path after the prefix
 	//If not found, return 404
-	if (this->servers[server_fd].locations.find(path) == this->servers[server_fd].locations.end()){
-		std::string file_path = checkDirectoryRoute(server_fd, path);
+	if (this->servers[server_fd].locations.find(route) == this->servers[server_fd].locations.end()){
+		std::string file_path = checkDirectoryRoute(server_fd, route);
 		if (file_path.empty()){
-			std::cout << COLOR_RED <<  "Error. Path: " << path <<  " not found"  << COLOR_RESET << std::endl;
+			std::cout << COLOR_RED <<  "Error. Route: " << route <<  " not found"  << COLOR_RESET << std::endl;
 			this->client_responses[socket_fd] = this->handleError(404, this->client_requests[socket_fd].server_fd);
 			this->client_requests[socket_fd].status_code = 404;
 			return ;
 		}
-		else
+		else{
+			this->client_requests[socket_fd].route = route;
 			this->client_requests[socket_fd].file_path = file_path;
+		}
 	}
 
 	//Check for the content-length exceed the limit
-	if (this->servers[server_fd].locations[path]->max_body_size_set == 1){
-		if (this->client_requests[socket_fd].contentLength > this->servers[server_fd].locations[path]->max_body_size){
+	if (this->servers[server_fd].locations[route]->max_body_size_set == 1){
+		if (this->client_requests[socket_fd].contentLength > this->servers[server_fd].locations[route]->max_body_size){
 			std::cout << COLOR_RED << "Error. Content-Length exceed limit" << COLOR_RESET << std::endl;
 			this->client_responses[socket_fd] = this->handleError(413, this->client_requests[socket_fd].server_fd);
 			this->client_requests[socket_fd].status_code = 413;
@@ -313,7 +323,7 @@ void		Server::handleRequest(int socket_fd){
 					std::cout << "script_file: " << script_file << std::endl;
 					std::cout << "Handler: " << it->second << std::endl;
 				}
-				this->client_responses[socket_fd] = this->handleCGI(socket_fd, conf, method);
+				this->client_responses[socket_fd] = this->handleCGI(socket_fd);
 				return ;
 			}
 		}
@@ -321,7 +331,7 @@ void		Server::handleRequest(int socket_fd){
 
 
 	//Check if Method can be handle
-	METHOD request_method = getMethod(method, this->servers[server_fd].locations[path]->limit_except);
+	METHOD request_method = getMethod(method, this->servers[server_fd].locations[route]->limit_except);
 	this->client_requests[socket_fd].method = request_method;
 	int method_int = static_cast<int>(request_method);
 	if (method_int < 0){
@@ -343,7 +353,7 @@ void		Server::handleRequest(int socket_fd){
 	typedef std::string (Server::*func)(int &, locationInfo &);
 	func methods[METHOD_COUNT] = {&Server::handleGet, &Server::handlePost, &Server::handlePut, &Server::handleHead, &Server::handleDelete};
 	this->client_responses[socket_fd] = (this->*methods[this->client_requests[socket_fd].method])
-											(socket_fd, *(this->servers[server_fd].locations[path]));
+											(socket_fd, *(this->servers[server_fd].locations[route]));
 }
 
 /**
@@ -448,9 +458,7 @@ int Server::checkHost(std::string &header, std::string &server_name){
 	return (0);
 }
 
-std::string Server::handleCGI(int &client_fd, serverConf &server, std::string &method){
-	(void) method;
-	(void) server;
+std::string Server::handleCGI(int &client_fd){
 	std::cout << "HANDLE CGI" << std::endl;
 
 	// std::string cgi_path = server.cgi_bin + this->client_requests[client_fd].file_path;
@@ -499,7 +507,9 @@ std::string Server::handleCGI(int &client_fd, serverConf &server, std::string &m
 	if (child == 0){
 		dup2(fdIn, STDIN_FILENO);
 		dup2(fdOut, STDOUT_FILENO);
-		execve(cgi_path.c_str(), NULL, NULL);
+		char **argv = new char*[1];
+		argv[0] = NULL;
+		execve(cgi_path.c_str(), argv, NULL);
 	}
 	else{
 		int status;
@@ -533,7 +543,7 @@ std::string	Server::handleGet(int &client_fd, locationInfo &location){
 	if (request.file_path.empty() && location.index.empty() && location.redirect_address.empty()){
 		if (location.autoindex == true){
 
-			return (generateAutoindex(client_fd, request.path, location.root));
+			return (generateAutoindex(client_fd, request.route, location.root));
 		}
 		else{
 			this->client_requests[client_fd].status_code = 404;
@@ -546,10 +556,10 @@ std::string	Server::handleGet(int &client_fd, locationInfo &location){
 		whole_path = location.root + request.file_path;
 		if (checkIsDirectory(whole_path) == 1){
 			std::map<std::string, locationInfo *>::iterator it;
-			it = this->servers[request.server_fd].locations.find(request.path);
+			it = this->servers[request.server_fd].locations.find(request.route);
 			if (it != this->servers[request.server_fd].locations.end()){
 				if (it->second->autoindex == true){
-					return (generateAutoindex(client_fd, request.path, whole_path));
+					return (generateAutoindex(client_fd, request.route, whole_path));
 				}
 			}
 			this->client_requests[client_fd].status_code = 404;
@@ -715,17 +725,17 @@ std::string	Server::handleDelete(int &client_fd, locationInfo &location){
  * Also modify the input argument to remove the file name from the path.
  * Return empty string if not found.
  */
-std::string Server::checkDirectoryRoute(int server_fd, std::string &path){
+std::string Server::checkDirectoryRoute(int server_fd, std::string &route){
 	std::string file_path;
 
 	std::map<std::string, locationInfo *>::iterator it;
 	for (it = this->servers[server_fd].locations.begin(); it != this->servers[server_fd].locations.end(); it ++){
 		const std::string &base_path = it->first;
-		if (path.substr(0, base_path.length()) == base_path){
-			file_path = path.substr(base_path.length());
+		if (route.substr(0, base_path.length()) == base_path){
+			file_path = route.substr(base_path.length());
 		}
 	}
-	path = path.substr(0, path.length() - file_path.length());
+	route = route.substr(0, route.length() - file_path.length());
 	if (file_path[0] != '/'){
 		file_path = "/" + file_path;
 	}

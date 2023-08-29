@@ -423,6 +423,10 @@ void ConfigParser::addErrorpages(serverConf *current_conf){
 	}
 }
 
+/**
+ * @brief Check if the root and cgi path is a directory
+ * 
+ */
 int ConfigParser::validateLocationRoot(serverConf *current_conf){
 	std::map<std::string, locationInfo*>::iterator it;
 	for (it = current_conf->locations.begin(); it != current_conf->locations.end(); it++){
@@ -437,6 +441,15 @@ int ConfigParser::validateLocationRoot(serverConf *current_conf){
 		else{
 			it->second->root = current_conf->root;
 		}
+	}
+	std::multimap<std::string, std::string>::iterator cgi_it;
+	for (cgi_it = current_conf->cgi.begin(); cgi_it != current_conf->cgi.end(); cgi_it++){
+		std::string full_path = cgi_it->second;
+		if (checkIsDirectory(full_path) != 1){
+			std::cout << COLOR_RED << "Error. Invalid cgi path: " << full_path << COLOR_RESET << std::endl;
+			return (0);
+		}
+		cgi_it->second = full_path;
 	}
 	return (1);
 }

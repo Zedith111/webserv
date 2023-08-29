@@ -1,17 +1,13 @@
 valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes  --verbose     
      --log-file=valgrind-out.txt          ./webserv config/test.conf
 
-Check nginx action with directory
-Check leak as change to vector
-redirection will overwrite index
-file->redirect->index->autoindex->file
-
 To add new error page
     configParser::addErrorPages
     configParser::initDefaultErrorPages
     Server::Server
 
 # Test
+Check leak
 ## Get
     file
     index
@@ -24,7 +20,9 @@ To add new error page
 
 # To Do
     Improve path finding
+    before send printout response
     Try with python cgi
+    add 200 to hello.cgi
     Do env
 
 
@@ -45,6 +43,7 @@ To add new error page
     when not member function failed, close socket and clear in FdSet
     gprod
     flush
+    fcntl ?
 
 Location block before server block
 Mulitiple root present
