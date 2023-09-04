@@ -19,8 +19,8 @@ Check leak
     Duplicate upload of same file
 
 # To Do
-    Do cgi
-    Try with python cgi
+    Fix cgi interpretor
+    fix when error no comeout
     Do env
 
 

@@ -23,6 +23,7 @@
 # include <cstdio>
 
 
+// # define BUFFER_SIZE 10000
 # define BUFFER_SIZE 1024
 
 /**
@@ -58,6 +59,7 @@ struct requestData{
 	std::string::size_type contentLength;
 
 	int is_cgi;
+	std::string interpretor;
 	std::string query_string;
 	char **envp;
 };

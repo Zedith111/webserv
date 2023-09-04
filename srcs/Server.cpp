@@ -11,7 +11,7 @@
 /* ************************************************************************** */
 
 #include "Server.hpp"
-
+#include <unistd.h>
 /**
  * @brief Server object constructor. Will initialize following
  * 1. Reason code and reason phrase 
@@ -218,6 +218,7 @@ void	Server::handleConnection(int socket_fd){
 			sendResponse(socket_fd);
 			return ;
 		}
+		std::cout << "Buffer: " << std::endl << buffer << std::endl;
 		this->client_requests[socket_fd].whole_request.append(buffer, bytes_read);
 		if (checkReceive(this->client_requests[socket_fd].whole_request) == 1)
 			return ;
@@ -269,19 +270,19 @@ void		Server::handleRequest(int socket_fd){
 		return ;
 	}
 
-	if(checkCGIRequest(route, this->servers[server_fd], this->client_requests[socket_fd].file_path)){
+	if(checkCGIRequest(route, this->servers[server_fd], this->client_requests[socket_fd])){
 		if (method != "GET" && method != "POST"){
 			std::cout << COLOR_RED << "Error. Method " << method << " is not allowed for cgi"  << COLOR_RESET << std::endl;
 			this->client_responses[socket_fd] = this->handleError(405, this->client_requests[socket_fd].server_fd);
 			this->client_requests[socket_fd].status_code = 405;
 			return ;
 		}
-		this->client_requests[socket_fd].is_cgi = 1;
-		this->client_responses[socket_fd] = handleCGI(socket_fd);
 		if (method == "GET")
 			this->client_requests[socket_fd].method = GET;
 		else
 			this->client_requests[socket_fd].method = POST;
+		this->client_requests[socket_fd].is_cgi = 1;
+		this->client_responses[socket_fd] = handleCGI(socket_fd);
 		return ;
 	}
 
@@ -379,13 +380,18 @@ void	Server::sendResponse(int socket_fd){
  */
 int	Server::checkReceive(std::string &msg){
 	std::string header_end = "\r\n\r\n";
-	if (msg.find(header_end) == std::string::npos)
-		return (1);
+	std::cout << "Whole Request: " << std::endl << msg << std::endl;
+	// if (msg.find(header_end) == std::string::npos){
+	// 	std::cout << "Header not complete" << std::endl;
+	// 	return (1);
+	// }
 	if (msg.find("Transfer-Encoding: chunked") != std::string::npos){
+		std::cout << "Chunked" << std::endl;
 		if (msg.find("0\r\n\r\n") == std::string::npos)
 			return (0);
 	}
 	if (msg.find("Content-Length: ") != std::string::npos){
+		std::cout << "Content-Length" << std::endl;
 		size_t	value_pos = msg.find("Content-Length: ");
 		size_t	end_pos = msg.find("\r\n", value_pos);
 		std::string content_length = msg.substr(value_pos + 16, end_pos - value_pos - 16);
@@ -443,13 +449,27 @@ int Server::checkHost(std::string &header, std::string &server_name){
 	return (0);
 }
 
+//Find extension
+//Find intepretor
+//differntiate between get and post
+//set up env
 std::string Server::handleCGI(int &client_fd){
 	std::cout << "HANDLE CGI" << std::endl;
 
 	std::string cgi_path = this->client_requests[client_fd].file_path;
+	std::string interpretor = this->client_requests[client_fd].interpretor;
+	
+	std::cout << "Interpretor: " << interpretor << std::endl;
+	std::cout << "CGI Path: " << cgi_path << std::endl;
 
 	if (access(cgi_path.c_str(), R_OK| X_OK) != 0){
 		std::cout << COLOR_RED << "Error: Unable to access cgi script: " << cgi_path << COLOR_RESET << std::endl;
+		this->client_requests[client_fd].status_code = 500;
+		return (this->handleError(500, this->client_requests[client_fd].server_fd));
+	}
+
+	if (access(interpretor.c_str(), R_OK| X_OK) != 0){
+		std::cout << COLOR_RED << "Error: Unable to access interpretor: " << interpretor << COLOR_RESET << std::endl;
 		this->client_requests[client_fd].status_code = 500;
 		return (this->handleError(500, this->client_requests[client_fd].server_fd));
 	}
@@ -491,9 +511,12 @@ std::string Server::handleCGI(int &client_fd){
 	if (child == 0){
 		dup2(fdIn, STDIN_FILENO);
 		dup2(fdOut, STDOUT_FILENO);
-		char **argv = new char*[1];
-		argv[0] = NULL;
-		execve(cgi_path.c_str(), argv, NULL);
+		char *argv[3];
+		argv[0] = const_cast<char *>(this->client_requests[client_fd].interpretor.c_str());
+		argv[1] = strdup(this->client_requests[client_fd].file_path.c_str());
+		argv[2] = NULL;
+
+		execve(argv[0], argv, NULL);
 	}
 	else{
 		int status;

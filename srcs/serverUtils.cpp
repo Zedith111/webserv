@@ -36,7 +36,7 @@ METHOD	getMethod(std::string &method, std::vector<std::string> &limit_except){
  * @brief Check whether a request is a CGI request or not base on the server.
  * Will also set the file_path to be the path of the cgi script.
  */
-int checkCGIRequest(std::string &path, serverConf &server, std::string &file_path){
+int checkCGIRequest(std::string &path, serverConf &server, requestData &request){
 	std::string::size_type extension_pos = path.find_last_of(".");
 	if (extension_pos == std::string::npos){
 		return (0);
@@ -44,11 +44,12 @@ int checkCGIRequest(std::string &path, serverConf &server, std::string &file_pat
 	std::string::size_type query_string_pos = path.find_last_of("?");
 	std::string extension = path.substr(extension_pos, query_string_pos - extension_pos);
 
-	std::multimap<std::string, std::string>::iterator it = server.cgi.find(extension);
-	if (it == server.cgi.end()){
+	std::multimap<std::string, std::string>::iterator it = server.cgi_map.find(extension);
+	if (it == server.cgi_map.end()){
 		return (0);
 	}
-	file_path = it->second + "/" + path.substr(1, extension_pos - 1) + extension;
+	request.interpretor = it->second;
+	request.file_path = server.cgi_bin + "/" + path.substr(1, extension_pos - 1) + extension;
 	return (1);
 }
 
