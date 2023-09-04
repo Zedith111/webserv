@@ -79,7 +79,7 @@ class Server{
 		std::ofstream				database;
 		
 		int				acceptNewConnection(int socket_fd);
-		void			handleConnection(int socket_fd);
+		int			handleConnection(int socket_fd);
 		void			handleRequest(int socket_fd);
 		void			sendResponse(int socket_fd);
 		int				checkReceive(std::string &msg);

@@ -88,7 +88,8 @@ int	Server::init(std::vector<serverConf *> confs){
 
 			//Allow Port Reuse
 			int reuse = 1;
-			if (setsockopt(socket_fd, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse)) < 0){
+			// if (setsockopt(socket_fd, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse)) < 0){
+			if (setsockopt(socket_fd, SOL_SOCKET, SO_NOSIGPIPE, &reuse, sizeof(reuse)) < 0){
 				std::cerr << COLOR_RED << "Error. Unable to set socket option for port " << conf.port_number[i] << strerror(errno) << std::endl;
 				freeaddrinfo(res);
 				return (0);
@@ -117,7 +118,8 @@ int	Server::init(std::vector<serverConf *> confs){
 }
 
 /**
- * @brief Server run function. Will run a infinite loop to accept connection and handle request
+ * @brief Run a infinite loop which handle connection and request. The process are as following
+ * 	1) Check the fd return by select
  */
 void	Server::run(){
 	std::cout << "Server is running" << std::endl;
@@ -141,6 +143,7 @@ void	Server::run(){
 			std::cout << COLOR_RED << "Error. select failed. " << strerror(errno) << COLOR_RESET << std::endl;
 			return ;
 		}
+		//no fd ready, move to next loop
 		if (select_val == 0)
 			continue;
 
@@ -149,6 +152,7 @@ void	Server::run(){
 			if (!FD_ISSET(i, &read_ready_fd))
 				continue ;
 			int is_new_socket = 0;
+			//If equal to one of server socket, new connection
 			if (this->servers.find(i) != this->servers.end()){
 				int new_socket = acceptNewConnection(i);
 				if (new_socket < 0)
@@ -158,7 +162,13 @@ void	Server::run(){
 				break ;
 			}
 			if (!is_new_socket){
-				handleConnection(i);
+
+				//TODO :handle connection return -1	
+
+
+				int handle_ret =2;
+				handle_ret = handleConnection(i);
+				std::cout << "Handle ret: " << handle_ret << std::endl;
 				FD_SET(i, &this->write_fd);
 				FD_CLR(i, &this->read_fd);
 			}
@@ -170,13 +180,16 @@ void	Server::run(){
 				continue ;
 			handleRequest(i);
 			sendResponse(i);
-			FD_CLR(i, &this->write_fd);
+			// usleep(5000);
+			std::cout << "Close socket " << i << std::endl;
+			FD_CLR(i, &this->write_fd); 
 		}
 	}
 }
 
 /**
- * @brief Accept new connection and map the client to correct server
+ * @brief Accept new connection and map the client to correct server. Return new socket fd
+ * when success, -1 when error
  */
 int	Server::acceptNewConnection(int socket_fd){
 	int new_socket = accept(socket_fd, NULL, NULL);
@@ -196,12 +209,12 @@ int	Server::acceptNewConnection(int socket_fd){
 }
 
 /**
- * @brief Receive the message sent by client
+ * @brief Receive the all message sent by client. Return 0 when client close connection, 1 when success.
+ * -1 when error
  */
-void	Server::handleConnection(int socket_fd){
+int	Server::handleConnection(int socket_fd){
 	int		bytes_read;
 	char	buffer[BUFFER_SIZE];
-
 	while (1){
 		memset(buffer, 0, BUFFER_SIZE);
 		bytes_read = recv(socket_fd, buffer, BUFFER_SIZE, 0);
@@ -209,20 +222,21 @@ void	Server::handleConnection(int socket_fd){
 			std::cout << "Client hangout at " << socket_fd << std::endl;
 			this->client_requests.erase(socket_fd);
 			close(socket_fd);
-			return ;
+			return (0);
 		}
 		if (bytes_read < 0){
-			std::cout << "Error. recv failed at " << socket_fd << ". " << strerror(errno) <<  std::endl;
+			std::cout << COLOR_RED << "Error. recv failed at " << socket_fd << ". " << strerror(errno) <<  std::endl;
 			this->client_responses[socket_fd] = this->handleError(500, this->client_requests[socket_fd].server_fd);
 			this->client_requests[socket_fd].status_code = 500;
-			sendResponse(socket_fd);
-			return ;
+			return (-1);
 		}
-		std::cout << "Buffer: " << std::endl << buffer << std::endl;
 		this->client_requests[socket_fd].whole_request.append(buffer, bytes_read);
-		if (checkReceive(this->client_requests[socket_fd].whole_request) == 1)
-			return ;
+		if (checkReceive(this->client_requests[socket_fd].whole_request) == 1){
+			return(1) ;
+		}
+		
 	}
+	
 }
 
 /**
@@ -255,6 +269,7 @@ void		Server::handleRequest(int socket_fd){
 		std::cout << "Route Root: " << this->servers[server_fd].locations[route]->root << std::endl;
 		std::cout << "Route Index: " << this->servers[server_fd].locations[route]->index << std::endl;
 	}
+	std::cout << "Whole Request: " << this->client_requests[socket_fd].whole_request << std::endl;
 
 	if (!checkHost(this->client_requests[socket_fd].header, this->servers[server_fd].server_name)){
 		std::cout << COLOR_RED << "Error. Host and server name does not match" << COLOR_RESET << std::endl;
@@ -380,11 +395,10 @@ void	Server::sendResponse(int socket_fd){
  */
 int	Server::checkReceive(std::string &msg){
 	std::string header_end = "\r\n\r\n";
-	std::cout << "Whole Request: " << std::endl << msg << std::endl;
-	// if (msg.find(header_end) == std::string::npos){
-	// 	std::cout << "Header not complete" << std::endl;
-	// 	return (1);
-	// }
+	if (msg.find(header_end) == std::string::npos){
+		std::cout << "Header not complete" << std::endl;
+		return (0);
+	}
 	if (msg.find("Transfer-Encoding: chunked") != std::string::npos){
 		std::cout << "Chunked" << std::endl;
 		if (msg.find("0\r\n\r\n") == std::string::npos)

@@ -19,6 +19,14 @@ Check leak
     Duplicate upload of same file
 
 # To Do
+    Add error handling, when receive failed FD_CLR read_fd
+    Add error handling, when send failed FD_CLR write_fd
+    Add error handling, when select faied
+
+    Handle request and send response not at same for loop
+
+    Check receive
+    Check send
     Fix cgi interpretor
     fix when error no comeout
     Do env
