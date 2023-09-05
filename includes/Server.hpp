@@ -24,7 +24,9 @@
 
 
 // # define BUFFER_SIZE 10000
-# define BUFFER_SIZE 1024
+// # define BUFFER_SIZE 1024
+# define BUFFER_SIZE 20
+
 
 /**
  * @brief Structure to store the request data received from the client.

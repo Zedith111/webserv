@@ -152,7 +152,7 @@ void	Server::run(){
 			if (!FD_ISSET(i, &read_ready_fd))
 				continue ;
 			int is_new_socket = 0;
-			//If equal to one of server socket, new connection
+			//If equal to one of server socket, it is new connection
 			if (this->servers.find(i) != this->servers.end()){
 				int new_socket = acceptNewConnection(i);
 				if (new_socket < 0)
@@ -162,26 +162,28 @@ void	Server::run(){
 				break ;
 			}
 			if (!is_new_socket){
-
-				//TODO :handle connection return -1	
-
-
-				int handle_ret =2;
-				handle_ret = handleConnection(i);
-				std::cout << "Handle ret: " << handle_ret << std::endl;
-				FD_SET(i, &this->write_fd);
-				FD_CLR(i, &this->read_fd);
+				int handle_ret = handleConnection(i);
+				if (handle_ret == 0){
+					close(i);
+					FD_CLR(i, &this->read_fd);
+					this->client_requests.erase(i);
+					break ;
+				}
+				else{
+					handleRequest(i);
+					FD_SET(i, &this->write_fd);
+					FD_CLR(i, &this->read_fd);
+				}
 			}
 		}
-
 		//Writing Response
 		for(int i = 0; i < FD_SETSIZE; i ++){
 			if (!FD_ISSET(i, &write_ready_fd))
 				continue ;
-			handleRequest(i);
+			// handleRequest(i);
 			sendResponse(i);
 			// usleep(5000);
-			std::cout << "Close socket " << i << std::endl;
+			std::cout << "Closing socket " << i << std::endl;
 			FD_CLR(i, &this->write_fd); 
 		}
 	}
@@ -200,6 +202,7 @@ int	Server::acceptNewConnection(int socket_fd){
 	}
 	this->client_requests[new_socket].server_fd = socket_fd;
 	this->client_requests[new_socket].port = this->sockets_port[socket_fd];
+	this->client_requests[new_socket].status_code = 0;
 	if (DEBUG){
 		std::cout << "New client joined at socket " << new_socket << std::endl;
 		std::cout << "Join at port " << this->sockets_port[socket_fd] << std::endl;
@@ -209,34 +212,44 @@ int	Server::acceptNewConnection(int socket_fd){
 }
 
 /**
- * @brief Receive the all message sent by client. Return 0 when client close connection, 1 when success.
+ * @brief Receive the all message sent by client. Return 0 when client close connection, 1 when completed,
  * -1 when error
  */
 int	Server::handleConnection(int socket_fd){
 	int		bytes_read;
 	char	buffer[BUFFER_SIZE];
-	while (1){
+
+	memset(buffer, 0, BUFFER_SIZE);
+	bytes_read = recv(socket_fd, buffer, BUFFER_SIZE, 0);
+
+	if (bytes_read == 0){
+		std::cout << "Client hangout at " << socket_fd << std::endl;
+		this->client_requests.erase(socket_fd);
+		close(socket_fd);
+		return (0);
+	}
+	if (bytes_read < 0){
+		std::cout << COLOR_RED << "Error. recv failed at " << socket_fd << ". " << strerror(errno) << COLOR_RESET <<  std::endl;
+		this->client_responses[socket_fd] = this->handleError(500, this->client_requests[socket_fd].server_fd);
+		this->client_requests[socket_fd].status_code = 500;
+		return (-1);
+	}
+	while (bytes_read > 0){
+		std::cout << COLOR_GREEN << "Receiving " << bytes_read << COLOR_RESET << std::endl;
+		std::cout.flush();
+		this->client_requests[socket_fd].whole_request.append(buffer, bytes_read);
 		memset(buffer, 0, BUFFER_SIZE);
 		bytes_read = recv(socket_fd, buffer, BUFFER_SIZE, 0);
 		if (bytes_read == 0){
 			std::cout << "Client hangout at " << socket_fd << std::endl;
-			this->client_requests.erase(socket_fd);
-			close(socket_fd);
 			return (0);
 		}
 		if (bytes_read < 0){
-			std::cout << COLOR_RED << "Error. recv failed at " << socket_fd << ". " << strerror(errno) <<  std::endl;
-			this->client_responses[socket_fd] = this->handleError(500, this->client_requests[socket_fd].server_fd);
-			this->client_requests[socket_fd].status_code = 500;
+			std::cout << COLOR_RED << "Error1. recv failed at " << socket_fd << ". " << strerror(errno) << COLOR_RESET <<  std::endl;
 			return (-1);
 		}
-		this->client_requests[socket_fd].whole_request.append(buffer, bytes_read);
-		if (checkReceive(this->client_requests[socket_fd].whole_request) == 1){
-			return(1) ;
-		}
-		
 	}
-	
+	return (checkReceive(this->client_requests[socket_fd].whole_request));
 }
 
 /**
@@ -247,6 +260,9 @@ int	Server::handleConnection(int socket_fd){
  * Write the response body to client_responses
  */
 void		Server::handleRequest(int socket_fd){
+	std::cout << "Handling request" << std::endl;
+	if (this->client_requests[socket_fd].status_code != 0)
+		return ;
 	std::string header = this->client_requests[socket_fd].whole_request.substr(0, this->client_requests[socket_fd].whole_request.find("\r\n\r\n"));
 	std::string body = this->client_requests[socket_fd].whole_request.substr(this->client_requests[socket_fd].whole_request.find("\r\n\r\n") + 4);
 	size_t contentLength = body.length();
@@ -269,8 +285,6 @@ void		Server::handleRequest(int socket_fd){
 		std::cout << "Route Root: " << this->servers[server_fd].locations[route]->root << std::endl;
 		std::cout << "Route Index: " << this->servers[server_fd].locations[route]->index << std::endl;
 	}
-	std::cout << "Whole Request: " << this->client_requests[socket_fd].whole_request << std::endl;
-
 	if (!checkHost(this->client_requests[socket_fd].header, this->servers[server_fd].server_name)){
 		std::cout << COLOR_RED << "Error. Host and server name does not match" << COLOR_RESET << std::endl;
 		this->client_responses[socket_fd] = this->handleError(400, this->client_requests[socket_fd].server_fd);
@@ -391,21 +405,28 @@ void	Server::sendResponse(int socket_fd){
 }
 
 /**
- * @brief Check that all the data has been received
+ * @brief Check that all the data has been received.First look for end of header(\r\n\r\n).
+ * Then check for transder encoding chunked(0\r\n\r\n) and content length
  */
 int	Server::checkReceive(std::string &msg){
 	std::string header_end = "\r\n\r\n";
+
+	std::cout << "Checking receive" << std::endl;
+	std::cout << "Message: " << std::endl << msg << std::endl;
+
 	if (msg.find(header_end) == std::string::npos){
 		std::cout << "Header not complete" << std::endl;
 		return (0);
 	}
 	if (msg.find("Transfer-Encoding: chunked") != std::string::npos){
-		std::cout << "Chunked" << std::endl;
+		std::cout << "Process Chunked Encoding" << std::endl;
 		if (msg.find("0\r\n\r\n") == std::string::npos)
 			return (0);
+		else
+			return (1);
 	}
 	if (msg.find("Content-Length: ") != std::string::npos){
-		std::cout << "Content-Length" << std::endl;
+		std::cout << "Process Content-Length" << std::endl;
 		size_t	value_pos = msg.find("Content-Length: ");
 		size_t	end_pos = msg.find("\r\n", value_pos);
 		std::string content_length = msg.substr(value_pos + 16, end_pos - value_pos - 16);
