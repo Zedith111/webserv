@@ -82,7 +82,6 @@ struct serverConf{
 	std::string server_name;
 	std::string root;
 	std::map<int, std::string>	error_pages;
-	std::string cgi_bin;
 	std::multimap<std::string, std::string> cgi_map;
 	std::map<std::string, locationInfo *> locations;
 };

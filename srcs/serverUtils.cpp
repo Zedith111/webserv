@@ -49,7 +49,7 @@ int checkCGIRequest(std::string &path, serverConf &server, requestData &request)
 		return (0);
 	}
 	request.interpretor = it->second;
-	request.file_path = server.cgi_bin + "/" + path.substr(1, extension_pos - 1) + extension;
+	request.file_path = path.substr(1, extension_pos - 1) + extension;
 	return (1);
 }
 
@@ -104,3 +104,55 @@ int	storeFile(std::string &directory_path, formData &form_data){
 	file.close();
 	return (1);
 }
+
+/**
+ * @brief Return the correct error page based on error code and server config
+ */
+std::string handleError(int error_code, serverConf &conf){
+	std::string ret = conf.error_pages[error_code];
+	std::ifstream file(ret.c_str());
+	std::stringstream buffer;
+	buffer << file.rdbuf();
+	file.close();
+	return (buffer.str());
+}
+
+int generateAutoindex(serverConf &conf,std::string &route, std::string &file_path, std::string &response){
+	if (checkIsDirectory(file_path) <= 0){
+		response = handleError(403, conf);
+		return (403);
+	}
+	response += "<html>\n<head>\n<title>Index of " + route + "</title>\n</head>\n<body>\n<h1>Index of " + route + "</h1>\n";
+	response += "<table>\n<tr>\n<th>Name</th>\n<th>Last Modified</th>\n<th>Size</th>\n</tr>\n";
+	try{
+		response += printDirectory(route, file_path);
+	}
+	catch(const std::exception &e){
+		std::cout << COLOR_RED << "Error. Unable to open directory " << file_path << COLOR_RESET << std::endl;
+		response = handleError(500, conf);
+		return (500);
+	}
+	response += "</table></body>\n</html>";
+	return (200);
+}
+
+
+// std::string generateAutoindex(serverConf &conf,std::string &route, std::string &file_path, int &status_code){
+// 	if (checkIsDirectory(file_path) <= 0){
+// 		status_code = 403;
+// 		return (handleError(403, conf));
+// 	}
+// 	std::string res;
+// 	res += "<html>\n<head>\n<title>Index of " + route + "</title>\n</head>\n<body>\n<h1>Index of " + route + "</h1>\n";
+// 	res += "<table>\n<tr>\n<th>Name</th>\n<th>Last Modified</th>\n<th>Size</th>\n</tr>\n";
+// 	try{
+// 		res += printDirectory(route, file_path);
+// 	}
+// 	catch(const std::exception &e){
+// 		std::cout << COLOR_RED << "Error. Unable to open directory " << file_path << COLOR_RESET << std::endl;
+// 		status_code = 500;
+// 		return (handleError(500, conf));
+// 	}
+// 	res += "</table></body>\n</html>";
+// 	return (res);
+// }

@@ -14,6 +14,7 @@
 #include "Server.hpp"
 #include "ConfigParser.hpp"
 #include "utils.hpp"
+#include <signal.h>
 
 int	main(int argc, char **argv){
 
@@ -39,6 +40,7 @@ int	main(int argc, char **argv){
 
 	std::vector<serverConf *>confs = confParser.getConfigs();
 	Server server;
+	signal(SIGPIPE, SIG_IGN);
 	if (!server.init(confs))
 		return (1);
 	server.run();	

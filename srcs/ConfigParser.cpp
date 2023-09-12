@@ -92,11 +92,11 @@ int	ConfigParser::parseToken(){
 }
 
 int	ConfigParser::parseServer(size_t &current, int indent_level, serverConf *current_conf){
-	std::string	keys[] = {"listen", "server_name", "root", "cgi_bin", "error_pages", "Add_handler"};
+	std::string	keys[] = {"listen", "server_name", "root", "error_pages", "Add_handler"};
 	const int			key_size = sizeof(keys) / sizeof(keys[0]);
 	typedef int (ConfigParser::*func)(size_t &, serverConf *);
 	func	key_funcs[key_size] = {&ConfigParser::parseListen, &ConfigParser::parseServerName, &ConfigParser::parseRoot,
-					&ConfigParser::parseCGIBin,&ConfigParser::parseErrorPages, &ConfigParser::parseCGIHandler};
+				&ConfigParser::parseErrorPages, &ConfigParser::parseCGIHandler};
 
 	//Check present of server block
 	if (current_conf == NULL){
@@ -277,17 +277,17 @@ int ConfigParser::parseRoot(size_t &current, serverConf *current_conf){
 	return (checkEnding(current));
 }
 
-int ConfigParser::parseCGIBin(size_t &current, serverConf *current_conf){
-	current += 1;
-	std::string path = this->tokens[current];
-	if (checkIsDirectory(path) != 1){
-		std::cout << COLOR_RED << "Error. Invalid cgi bin path: " << path << COLOR_RESET << std::endl;
-		return (0);
-	}
-	current_conf->cgi_bin = path;
-	current += 1;
-	return (checkEnding(current));
-}
+// int ConfigParser::parseCGIBin(size_t &current, serverConf *current_conf){
+// 	current += 1;
+// 	std::string path = this->tokens[current];
+// 	if (checkIsDirectory(path) != 1){
+// 		std::cout << COLOR_RED << "Error. Invalid cgi bin path: " << path << COLOR_RESET << std::endl;
+// 		return (0);
+// 	}
+// 	current_conf->cgi_bin = path;
+// 	current += 1;
+// 	return (checkEnding(current));
+// }
 
 int ConfigParser::parseErrorPages(size_t &current, serverConf *current_conf){
 	current += 1;

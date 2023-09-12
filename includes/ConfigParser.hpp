@@ -36,7 +36,6 @@ class ConfigParser{
 		int	parseListen(size_t &current, serverConf *current_conf);
 		int	parseServerName(size_t &current, serverConf *current_conf);
 		int	parseRoot(size_t &current, serverConf *current_conf);
-		int parseCGIBin(size_t &current, serverConf *current_conf);
 		int	parseErrorPages(size_t &current, serverConf *current_conf);
 		int parseCGIHandler(size_t &current, serverConf *current_conf);
 

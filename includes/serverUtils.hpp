@@ -26,10 +26,12 @@ struct formData{
 
 struct requestData;
 
-METHOD	getMethod(std::string &method, std::vector<std::string> &limit_except);
-int checkCGIRequest(std::string &path, serverConf &server, requestData &request);
+METHOD		getMethod(std::string &method, std::vector<std::string> &limit_except);
+int 		checkCGIRequest(std::string &path, serverConf &server, requestData &request);
 formData	parseUpload(std::string &body, std::string &boundary);
-int	storeFile(std::string &directory_path, formData &form_data);
+int			storeFile(std::string &directory_path, formData &form_data);
+std::string handleError(int error_code, serverConf &conf);
+int generateAutoindex(serverConf &conf,std::string &route, std::string &file_path, std::string &response);
 
 
 #endif

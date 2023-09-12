@@ -86,10 +86,8 @@ int	Server::init(std::vector<serverConf *> confs){
 			std::cout << COLOR_GREEN << "Socket " << socket_fd << " created for port " << conf.port_number[i] << COLOR_RESET << std::endl;
 			this->servers[socket_fd] = conf;
 
-			//Allow Port Reuse
 			int reuse = 1;
-			// if (setsockopt(socket_fd, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse)) < 0){
-			if (setsockopt(socket_fd, SOL_SOCKET, SO_NOSIGPIPE, &reuse, sizeof(reuse)) < 0){
+			if (setsockopt(socket_fd, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse)) < 0){
 				std::cerr << COLOR_RED << "Error. Unable to set socket option for port " << conf.port_number[i] << strerror(errno) << std::endl;
 				freeaddrinfo(res);
 				return (0);
@@ -120,9 +118,13 @@ int	Server::init(std::vector<serverConf *> confs){
 /**
  * @brief Run a infinite loop which handle connection and request. The process are as following
  * 	1) Check the fd return by select
+ * 		- if the fd equal to one of the server socket, it is a new connection
+ * 		- else, it is a ongoing connection
+ * 	2) If it is a new connection, accept the connection and add it to the read_fd
+ * 	3) If it is a ongoing connection, handle the request
  */
 void	Server::run(){
-	std::cout << "Server is running" << std::endl;
+	// std::cout << "Server is running" << std::endl;
 	
 	fd_set 			read_ready_fd, write_ready_fd;
 	struct timeval	timeout;
@@ -141,7 +143,16 @@ void	Server::run(){
 		int select_val = select(FD_SETSIZE, &read_ready_fd, &write_ready_fd, NULL, &timeout);
 		if (select_val < 0){
 			std::cout << COLOR_RED << "Error. select failed. " << strerror(errno) << COLOR_RESET << std::endl;
-			return ;
+			std::cout << "Trying to reset" << std::endl;
+			for (std::map<int, requestData>::iterator it = this->client_requests.begin(); it != this->client_requests.end(); it ++){
+				close(it->first);
+			}
+			this->client_requests.clear();
+			this->client_responses.clear();
+			FD_ZERO(&this->read_fd);
+			for (std::map<int, serverConf>::iterator it = this->servers.begin(); it != this->servers.end(); it++){
+				FD_SET(it->first, &this->read_fd);
+			}
 		}
 		//no fd ready, move to next loop
 		if (select_val == 0)
@@ -163,28 +174,26 @@ void	Server::run(){
 			}
 			if (!is_new_socket){
 				int handle_ret = handleConnection(i);
-				if (handle_ret == 0){
-					close(i);
+				if (handle_ret == -1){
 					FD_CLR(i, &this->read_fd);
 					this->client_requests.erase(i);
-					break ;
 				}
-				else{
+				if (handle_ret == 1){
 					handleRequest(i);
 					FD_SET(i, &this->write_fd);
 					FD_CLR(i, &this->read_fd);
 				}
+				break ;
 			}
 		}
 		//Writing Response
 		for(int i = 0; i < FD_SETSIZE; i ++){
 			if (!FD_ISSET(i, &write_ready_fd))
 				continue ;
-			// handleRequest(i);
 			sendResponse(i);
-			// usleep(5000);
 			std::cout << "Closing socket " << i << std::endl;
 			FD_CLR(i, &this->write_fd); 
+			break ;
 		}
 	}
 }
@@ -212,8 +221,8 @@ int	Server::acceptNewConnection(int socket_fd){
 }
 
 /**
- * @brief Receive the all message sent by client. Return 0 when client close connection, 1 when completed,
- * -1 when error
+ * @brief Receive the all message sent by client. Return -1 when client close connection or error
+ *  1 when completed, 0 when ongoing
  */
 int	Server::handleConnection(int socket_fd){
 	int		bytes_read;
@@ -224,30 +233,20 @@ int	Server::handleConnection(int socket_fd){
 
 	if (bytes_read == 0){
 		std::cout << "Client hangout at " << socket_fd << std::endl;
-		this->client_requests.erase(socket_fd);
 		close(socket_fd);
-		return (0);
+		return (-1);
 	}
 	if (bytes_read < 0){
 		std::cout << COLOR_RED << "Error. recv failed at " << socket_fd << ". " << strerror(errno) << COLOR_RESET <<  std::endl;
-		this->client_responses[socket_fd] = this->handleError(500, this->client_requests[socket_fd].server_fd);
+		this->client_responses[socket_fd] = handleError(500, this->servers[this->client_requests[socket_fd].server_fd]);
 		this->client_requests[socket_fd].status_code = 500;
 		return (-1);
 	}
 	while (bytes_read > 0){
 		std::cout << COLOR_GREEN << "Receiving " << bytes_read << COLOR_RESET << std::endl;
-		std::cout.flush();
 		this->client_requests[socket_fd].whole_request.append(buffer, bytes_read);
 		memset(buffer, 0, BUFFER_SIZE);
 		bytes_read = recv(socket_fd, buffer, BUFFER_SIZE, 0);
-		if (bytes_read == 0){
-			std::cout << "Client hangout at " << socket_fd << std::endl;
-			return (0);
-		}
-		if (bytes_read < 0){
-			std::cout << COLOR_RED << "Error1. recv failed at " << socket_fd << ". " << strerror(errno) << COLOR_RESET <<  std::endl;
-			return (-1);
-		}
 	}
 	return (checkReceive(this->client_requests[socket_fd].whole_request));
 }
@@ -260,7 +259,6 @@ int	Server::handleConnection(int socket_fd){
  * Write the response body to client_responses
  */
 void		Server::handleRequest(int socket_fd){
-	std::cout << "Handling request" << std::endl;
 	if (this->client_requests[socket_fd].status_code != 0)
 		return ;
 	std::string header = this->client_requests[socket_fd].whole_request.substr(0, this->client_requests[socket_fd].whole_request.find("\r\n\r\n"));
@@ -278,23 +276,25 @@ void		Server::handleRequest(int socket_fd){
 
 	int	server_fd = this->client_requests[socket_fd].server_fd;
 	if (DEBUG){
+		std::cout << COLOR_CYAN << "[" << std::endl;
 		std::cout << "Request Header: " << std::endl << header << std::endl;
 		std::cout << "Request Body: " << std::endl << body << std::endl;
 		std::cout << "Method: " << method << std::endl;
 		std::cout << "Route: " << route << std::endl;
 		std::cout << "Route Root: " << this->servers[server_fd].locations[route]->root << std::endl;
 		std::cout << "Route Index: " << this->servers[server_fd].locations[route]->index << std::endl;
+		std::cout << "]" << COLOR_RESET << std::endl;
 	}
 	if (!checkHost(this->client_requests[socket_fd].header, this->servers[server_fd].server_name)){
 		std::cout << COLOR_RED << "Error. Host and server name does not match" << COLOR_RESET << std::endl;
-		this->client_responses[socket_fd] = this->handleError(400, this->client_requests[socket_fd].server_fd);
+		this->client_responses[socket_fd] = handleError(400,this->servers[this->client_requests[socket_fd].server_fd]);
 		this->client_requests[socket_fd].status_code = 400;
 		return ;
 	}
 
 	if (route == "/favicon.ico"){
 		std::cout << COLOR_YELLOW << "Favicon requested" << COLOR_RESET << std::endl;
-		this->client_responses[socket_fd] = this->handleError(404, this->client_requests[socket_fd].server_fd);
+		this->client_responses[socket_fd] = handleError(404, this->servers[this->client_requests[socket_fd].server_fd]);
 		this->client_requests[socket_fd].status_code = 404;
 		return ;
 	}
@@ -302,7 +302,7 @@ void		Server::handleRequest(int socket_fd){
 	if(checkCGIRequest(route, this->servers[server_fd], this->client_requests[socket_fd])){
 		if (method != "GET" && method != "POST"){
 			std::cout << COLOR_RED << "Error. Method " << method << " is not allowed for cgi"  << COLOR_RESET << std::endl;
-			this->client_responses[socket_fd] = this->handleError(405, this->client_requests[socket_fd].server_fd);
+			this->client_responses[socket_fd] = handleError(405, this->servers[this->client_requests[socket_fd].server_fd]);
 			this->client_requests[socket_fd].status_code = 405;
 			return ;
 		}
@@ -323,7 +323,7 @@ void		Server::handleRequest(int socket_fd){
 		std::string file_path = checkDirectoryRoute(server_fd, route);
 		if (file_path.empty()){
 			std::cout << COLOR_RED <<  "Error. Route: " << route <<  " not found"  << COLOR_RESET << std::endl;
-			this->client_responses[socket_fd] = this->handleError(404, this->client_requests[socket_fd].server_fd);
+			this->client_responses[socket_fd] = handleError(404, this->servers[this->client_requests[socket_fd].server_fd]);
 			this->client_requests[socket_fd].status_code = 404;
 			return ;
 		}
@@ -337,7 +337,7 @@ void		Server::handleRequest(int socket_fd){
 	if (this->servers[server_fd].locations[route]->max_body_size_set == 1){
 		if (this->client_requests[socket_fd].contentLength > this->servers[server_fd].locations[route]->max_body_size){
 			std::cout << COLOR_RED << "Error. Content-Length exceed limit" << COLOR_RESET << std::endl;
-			this->client_responses[socket_fd] = this->handleError(413, this->client_requests[socket_fd].server_fd);
+			this->client_responses[socket_fd] = handleError(413, this->servers[this->client_requests[socket_fd].server_fd]);
 			this->client_requests[socket_fd].status_code = 413;
 			return ;
 		}
@@ -350,32 +350,52 @@ void		Server::handleRequest(int socket_fd){
 	if (method_int < 0){
 		if (method_int == -2){
 			std::cout << COLOR_RED << "Error. Method " << method << " is not allowed"  << COLOR_RESET << std::endl;
-			this->client_responses[socket_fd] = this->handleError(405, this->client_requests[socket_fd].server_fd);
+			this->client_responses[socket_fd] = handleError(405, this->servers[this->client_requests[socket_fd].server_fd]);
 			this->client_requests[socket_fd].status_code = 405;
 			return ;
 		}
 		if (method_int == -1){
 			std::cout << COLOR_RED << "Error. Unknown method. " << method << COLOR_RESET << std::endl;
-			this->client_responses[socket_fd] = this->handleError(501, this->client_requests[socket_fd].server_fd);
+			this->client_responses[socket_fd] = handleError(501, this->servers[this->client_requests[socket_fd].server_fd]);
 			this->client_requests[socket_fd].status_code = 501;
 			return ;
 		}
 	}
 	
-	this->client_requests[socket_fd].status_code = 200;
-	typedef std::string (Server::*func)(int &, locationInfo &);
-	func methods[METHOD_COUNT] = {&Server::handleGet, &Server::handlePost, &Server::handlePut, &Server::handleHead, &Server::handleDelete};
-	this->client_responses[socket_fd] = (this->*methods[this->client_requests[socket_fd].method])
-											(socket_fd, *(this->servers[server_fd].locations[route]));
+	//Test Get
+	if (method_int == 0){
+		this->client_responses[socket_fd] = "";
+		this->client_requests[socket_fd].status_code = handleGet(
+			this->client_requests[socket_fd],
+			*(this->servers[server_fd].locations[route]),
+			this->client_responses[socket_fd],
+			this->servers[server_fd]
+		);
+	}
+
+	typedef int *func(requestData &, locationInfo &, std::string &, serverConf &);
+	func methods[METHOD_COUNT] = {&handleGet, &handlePost, &handlePut, &handleHead, &handleDelete};
+	this->client_requests[socket_fd].status_code = (this->*methods[method_int])
+													(this->client_requests[socket_fd],
+													*(this->servers[server_fd].locations[route]),
+													this->client_responses[socket_fd],
+													this->servers[server_fd]);
+
+	// this->client_requests[socket_fd].status_code = 200;
+	// typedef std::string (Server::*func)(int &, locationInfo &);
+	// func methods[METHOD_COUNT] = {&Server::handleGet, &Server::handlePost, &Server::handlePut, &Server::handleHead, &Server::handleDelete};
+	// this->client_responses[socket_fd] = (this->*methods[this->client_requests[socket_fd].method])
+	// 										(socket_fd, *(this->servers[server_fd].locations[route]));
 }
 
 /**
- * @brief Add header to the response body and sent it
+ * @brief Add header to the response body and sent it.
  */
 void	Server::sendResponse(int socket_fd){
 	std::string res;
 	if (!this->client_requests[socket_fd].is_cgi){
 		int status_code = this->client_requests[socket_fd].status_code;
+		std::cout << COLOR_MAGENTA << "Sending response " << status_code << " to socket " << socket_fd << COLOR_RESET << std::endl;
 		res = "HTTP/1.1 ";
 		res += intToString(status_code);
 		res += " ";
@@ -399,8 +419,7 @@ void	Server::sendResponse(int socket_fd){
 		std::cout << COLOR_RED << "Error. Send failed at " << socket_fd << strerror(errno) << COLOR_RESET << std::endl;
 	this->client_requests.erase(socket_fd);
 	this->client_responses.erase(socket_fd);
-	if (DEBUG)
-		std::cout << "Sent to socket: " << socket_fd << std::endl;
+	std::cout << COLOR_MAGENTA << "Sent " << byteSend << " bytes to socket: " << socket_fd << COLOR_RESET << std::endl;
 	close(socket_fd);
 }
 
@@ -411,22 +430,16 @@ void	Server::sendResponse(int socket_fd){
 int	Server::checkReceive(std::string &msg){
 	std::string header_end = "\r\n\r\n";
 
-	std::cout << "Checking receive" << std::endl;
-	std::cout << "Message: " << std::endl << msg << std::endl;
-
 	if (msg.find(header_end) == std::string::npos){
-		std::cout << "Header not complete" << std::endl;
 		return (0);
 	}
 	if (msg.find("Transfer-Encoding: chunked") != std::string::npos){
-		std::cout << "Process Chunked Encoding" << std::endl;
 		if (msg.find("0\r\n\r\n") == std::string::npos)
 			return (0);
 		else
 			return (1);
 	}
 	if (msg.find("Content-Length: ") != std::string::npos){
-		std::cout << "Process Content-Length" << std::endl;
 		size_t	value_pos = msg.find("Content-Length: ");
 		size_t	end_pos = msg.find("\r\n", value_pos);
 		std::string content_length = msg.substr(value_pos + 16, end_pos - value_pos - 16);
@@ -442,16 +455,16 @@ int	Server::checkReceive(std::string &msg){
 /**
  * @brief Read the respective error code and write the html file to the response body
  */
-std::string Server::handleError(int status_code, int server_fd){
-	serverConf conf = this->servers[server_fd];
-	std::string res = conf.error_pages[status_code];
-	std::ifstream file(res.c_str());
-	std::stringstream buffer;
-	buffer << file.rdbuf();
-	std::string content = buffer.str();
-	file.close();
-	return (content);
-}
+// std::string Server::handleError(int status_code, int server_fd){
+// 	serverConf conf = this->servers[server_fd];
+// 	std::string res = conf.error_pages[status_code];
+// 	std::ifstream file(res.c_str());
+// 	std::stringstream buffer;
+// 	buffer << file.rdbuf();
+// 	std::string content = buffer.str();
+// 	file.close();
+// 	return (content);
+// }
 
 /**
  * @brief Find the host name parameter and match it with the server name parameter
@@ -500,13 +513,13 @@ std::string Server::handleCGI(int &client_fd){
 	if (access(cgi_path.c_str(), R_OK| X_OK) != 0){
 		std::cout << COLOR_RED << "Error: Unable to access cgi script: " << cgi_path << COLOR_RESET << std::endl;
 		this->client_requests[client_fd].status_code = 500;
-		return (this->handleError(500, this->client_requests[client_fd].server_fd));
+		return (handleError(500, this->servers[this->client_requests[client_fd].server_fd]));
 	}
 
 	if (access(interpretor.c_str(), R_OK| X_OK) != 0){
 		std::cout << COLOR_RED << "Error: Unable to access interpretor: " << interpretor << COLOR_RESET << std::endl;
 		this->client_requests[client_fd].status_code = 500;
-		return (this->handleError(500, this->client_requests[client_fd].server_fd));
+		return (handleError(500, this->servers[this->client_requests[client_fd].server_fd]));
 	}
 
 	int stdin = dup(STDIN_FILENO);
@@ -524,7 +537,7 @@ std::string Server::handleCGI(int &client_fd){
 	if (script == NULL){
 		std::cout << COLOR_RED << "Error: Unable to open cgi script: " << cgi_path << COLOR_RESET << std::endl;
 		this->client_requests[client_fd].status_code = 500;
-		return (this->handleError(500, this->client_requests[client_fd].server_fd));
+		return (handleError(500, this->servers[this->client_requests[client_fd].server_fd]));
 	}
 
 	char buffer[1024];
@@ -541,7 +554,7 @@ std::string Server::handleCGI(int &client_fd){
 		fclose(tempIn);
 		fclose(tempOut);
 		this->client_requests[client_fd].status_code = 500;
-		return (this->handleError(500, this->client_requests[client_fd].server_fd));
+		return (handleError(500, this->servers[this->client_requests[client_fd].server_fd]));
 	}
 	if (child == 0){
 		dup2(fdIn, STDIN_FILENO);
@@ -580,53 +593,52 @@ std::string Server::handleCGI(int &client_fd){
  * 		- Use index parameter
  * 		- Use autoindex parameter
  */
-std::string	Server::handleGet(int &client_fd, locationInfo &location){
-	requestData &request = this->client_requests[client_fd];
-	if (request.file_path.empty() && location.index.empty() && location.redirect_address.empty()){
-		if (location.autoindex == true){
-
-			return (generateAutoindex(client_fd, request.route, location.root));
-		}
-		else{
-			this->client_requests[client_fd].status_code = 404;
-			return (handleError(404, this->client_requests[client_fd].server_fd));
-		}
-	}
+// std::string	Server::handleGet(int &client_fd, locationInfo &location){
+// 	requestData &request = this->client_requests[client_fd];
+// 	if (request.file_path.empty() && location.index.empty() && location.redirect_address.empty()){
+// 		if (location.autoindex == true){
+// 			return (generateAutoindex(client_fd, request.route, location.root));
+// 		}
+// 		else{
+// 			this->client_requests[client_fd].status_code = 404;
+// 			return (handleError(404, this->servers[this->client_requests[client_fd].server_fd]));
+// 		}
+// 	}
 	
-	std::string whole_path;
-	if (!request.file_path.empty()){
-		whole_path = location.root + request.file_path;
-		if (checkIsDirectory(whole_path) == 1){
-			std::map<std::string, locationInfo *>::iterator it;
-			it = this->servers[request.server_fd].locations.find(request.route);
-			if (it != this->servers[request.server_fd].locations.end()){
-				if (it->second->autoindex == true){
-					return (generateAutoindex(client_fd, request.route, whole_path));
-				}
-			}
-			this->client_requests[client_fd].status_code = 404;
-			return (handleError(404, this->client_requests[client_fd].server_fd));
-		}
-	}
-	else if (!location.redirect_address.empty()){
-		this->client_requests[client_fd].status_code = 301;
-		return (location.redirect_address);
-	}
-	else{
-		whole_path = location.root + "/" + location.index;
-	}
-	std::ifstream file(whole_path.c_str());
-	if (!file.is_open()){
-		std::cout << COLOR_RED << "Error. File not found. " << whole_path << COLOR_RESET << std::endl;
-		this->client_requests[client_fd].status_code = 404;
-		return (handleError(404, this->client_requests[client_fd].server_fd));
-	}
-	std::stringstream buffer;
-	buffer << file.rdbuf();
-	std::string content = buffer.str();
-	file.close();
-	return (content);
-}
+// 	std::string whole_path;
+// 	if (!request.file_path.empty()){
+// 		whole_path = location.root + request.file_path;
+// 		if (checkIsDirectory(whole_path) == 1){
+// 			std::map<std::string, locationInfo *>::iterator it;
+// 			it = this->servers[request.server_fd].locations.find(request.route);
+// 			if (it != this->servers[request.server_fd].locations.end()){
+// 				if (it->second->autoindex == true){
+// 					return (generateAutoindex(client_fd, request.route, whole_path));
+// 				}
+// 			}
+// 			this->client_requests[client_fd].status_code = 404;
+// 			return (handleError(404, this->servers[this->client_requests[client_fd].server_fd]));
+// 		}
+// 	}
+// 	else if (!location.redirect_address.empty()){
+// 		this->client_requests[client_fd].status_code = 301;
+// 		return (location.redirect_address);
+// 	}
+// 	else{
+// 		whole_path = location.root + "/" + location.index;
+// 	}
+// 	std::ifstream file(whole_path.c_str());
+// 	if (!file.is_open()){
+// 		std::cout << COLOR_RED << "Error. File not found. " << whole_path << COLOR_RESET << std::endl;
+// 		this->client_requests[client_fd].status_code = 404;
+// 		return (handleError(404, this->servers[this->client_requests[client_fd].server_fd]));
+// 	}
+// 	std::stringstream buffer;
+// 	buffer << file.rdbuf();
+// 	std::string content = buffer.str();
+// 	file.close();
+// 	return (content);
+// }
 
 /**
  * @brief The server will only handle two type of content type: "text/plain" and "multipart/form-data", other will return 400.
@@ -634,19 +646,22 @@ std::string	Server::handleGet(int &client_fd, locationInfo &location){
  * "multipart/form-data" will save the file in the upload directory
  */
 std::string	Server::handlePost(int &client_fd, locationInfo &location){
+	// std::cout << "HANDLE POST" << std::endl;
+	// std::string whole_path = location.root + this->client_requests[client_fd].file_path;
+	// std::cout << "Whole Request: " << this->client_requests[client_fd].whole_request << std::endl;
 	requestData request = this->client_requests[client_fd];
 	std::string::size_type content_type = request.header.find("Content-Type: ");
 
 	if (content_type == std::string::npos){
 		this->client_requests[client_fd].status_code = 400;
-		return (this->handleError(400, this->client_requests[client_fd].server_fd));
+		return (handleError(400, this->servers[this->client_requests[client_fd].server_fd]));
 	}
 
 	if (location.max_body_size_set == 1){
 		std::string content = this->client_requests[client_fd].body;
 		if (content.size() > location.max_body_size){
 			this->client_requests[client_fd].status_code = 413;
-			return (this->handleError(413, this->client_requests[client_fd].server_fd));
+			return (handleError(413, this->servers[this->client_requests[client_fd].server_fd]));
 		}
 	}
 	
@@ -667,7 +682,7 @@ std::string	Server::handlePost(int &client_fd, locationInfo &location){
 	}
 	else{
 		this->client_requests[client_fd].status_code = 415;
-		return (this->handleError(415, this->client_requests[client_fd].server_fd));
+		return (handleError(415, this->servers[this->client_requests[client_fd].server_fd]));
 	}
 }
 
@@ -676,19 +691,23 @@ std::string	Server::handlePost(int &client_fd, locationInfo &location){
  * The only difference is that PUT will overwrite the file if it exist and return 200 when overwrite happen
  */
 std::string	Server::handlePut(int &client_fd, locationInfo &location){
+	std::cout << "HANDLE PUT" << std::endl;
+	std::string whole_path = location.root + this->client_requests[client_fd].file_path;
+	std::cout << "Whole path: " << whole_path << std::endl;
+	std::cout << "Whole Request: " << this->client_requests[client_fd].whole_request << std::endl;
 	requestData request = this->client_requests[client_fd];
 	std::string::size_type content_type = request.header.find("Content-Type: ");
 
 	if (content_type == std::string::npos){
 		this->client_requests[client_fd].status_code = 400;
-		return (this->handleError(400, this->client_requests[client_fd].server_fd));
+		return (handleError(400, this->servers[this->client_requests[client_fd].server_fd]));
 	}
 
 	if (location.max_body_size_set == 1){
 		std::string content = this->client_requests[client_fd].body;
 		if (content.size() > location.max_body_size){
 			this->client_requests[client_fd].status_code = 413;
-			return (this->handleError(413, this->client_requests[client_fd].server_fd));
+			return (handleError(413, this->servers[this->client_requests[client_fd].server_fd]));
 		}
 	}
 	
@@ -723,13 +742,11 @@ std::string	Server::handlePut(int &client_fd, locationInfo &location){
 	}
 	else{
 		this->client_requests[client_fd].status_code = 415;
-		return (this->handleError(415, this->client_requests[client_fd].server_fd));
+		return (handleError(415, this->servers[this->client_requests[client_fd].server_fd]));
 	}
 }
 
 std::string	Server::handleHead(int &client_fd, locationInfo &location){
-	std::cout << "Handle Head" << std::endl;
-
 	std::string whole_path;
 	if (!this->client_requests[client_fd].file_path.empty()){
 		whole_path = location.root + this->client_requests[client_fd].file_path;
@@ -751,12 +768,12 @@ std::string	Server::handleHead(int &client_fd, locationInfo &location){
 std::string	Server::handleDelete(int &client_fd, locationInfo &location){
 	if (this->client_requests[client_fd].file_path.empty()){
 		this->client_requests[client_fd].status_code = 404;
-		return (handleError(404, this->client_requests[client_fd].server_fd));
+		return (handleError(404, this->servers[this->client_requests[client_fd].server_fd]));
 	}
 	std::string whole_path = location.root + this->client_requests[client_fd].file_path;
 	if (std::remove(whole_path.c_str()) != 0){
 		this->client_requests[client_fd].status_code = 404;
-		return (handleError(404, this->client_requests[client_fd].server_fd));
+		return (handleError(404, this->servers[this->client_requests[client_fd].server_fd]));
 	}
 	this->client_requests[client_fd].status_code = 204;
 	return ("");
@@ -784,29 +801,29 @@ std::string Server::checkDirectoryRoute(int server_fd, std::string &route){
 	return (file_path);
 }
 
-std::string	Server::generateAutoindex(int &client_fd, std::string &route, std::string &file_path){
-		std::cout << "Route: " << route << std::endl;
-		std::cout << "File Path: " << file_path << std::endl;
+// std::string	Server::generateAutoindex(int &client_fd, std::string &route, std::string &file_path){
+// 		std::cout << "Route: " << route << std::endl;
+// 		std::cout << "File Path: " << file_path << std::endl;
 
-		if (checkIsDirectory(file_path) <= 0){
-			this->client_requests[client_fd].status_code = 403;
-			return (handleError(403, this->client_requests[client_fd].server_fd));
-		}
-		std::string res;
-		res += "<html>\n<head>\n<title>Index of " + route + "</title>\n</head>\n<body>\n<h1>Index of " + route + "</h1>\n";
-		res += "<table>\n<tr>\n<th>Name</th>\n<th>Last Modified</th>\n<th>Size</th>\n</tr>\n";
-		try{
-			res += printDirectory(route, file_path);
-		}
-		catch(const std::exception &e)
-		{
-			std::cout << COLOR_RED << "Error. Unable to open directory " << file_path << COLOR_RESET << std::endl;
-			this->client_requests[client_fd].status_code = 500;
-			return (handleError(500, this->client_requests[client_fd].server_fd));
-		}
-		res += "</table></body>\n</html>";
-		return (res);
-}
+// 		if (checkIsDirectory(file_path) <= 0){
+// 			this->client_requests[client_fd].status_code = 403;
+// 			return (handleError(403, this->servers[this->client_requests[client_fd].server_fd]));
+// 		}
+// 		std::string res;
+// 		res += "<html>\n<head>\n<title>Index of " + route + "</title>\n</head>\n<body>\n<h1>Index of " + route + "</h1>\n";
+// 		res += "<table>\n<tr>\n<th>Name</th>\n<th>Last Modified</th>\n<th>Size</th>\n</tr>\n";
+// 		try{
+// 			res += printDirectory(route, file_path);
+// 		}
+// 		catch(const std::exception &e)
+// 		{
+// 			std::cout << COLOR_RED << "Error. Unable to open directory " << file_path << COLOR_RESET << std::endl;
+// 			this->client_requests[client_fd].status_code = 500;
+// 			return (handleError(500, this->servers[this->client_requests[client_fd].server_fd]));
+// 		}
+// 		res += "</table></body>\n</html>";
+// 		return (res);
+// }
 
 /**
  * @brief Method is used to determine whether to create the file or overwrite the file. 0 for post, 1 for put
@@ -819,14 +836,14 @@ std::string	Server::handleUpload(int &client_fd, locationInfo &location, int met
 	if (checkIsDirectory(upload_dir) != 1){
 		std::cout << COLOR_RED << "Error. Upload directory not found" << COLOR_RESET << std::endl;
 		this->client_requests[client_fd].status_code = 500;
-		return (this->handleError(500, this->client_requests[client_fd].server_fd));
+		return (handleError(500, this->servers[this->client_requests[client_fd].server_fd]));
 	}
 
 	DIR *dir = opendir(upload_dir.c_str());
 	if (dir == NULL){
 		std::cout << COLOR_RED << "Error. Unable to open upload directory" << COLOR_RESET << std::endl;
 		this->client_requests[client_fd].status_code = 500;
-		return (this->handleError(500, this->client_requests[client_fd].server_fd));
+		return (handleError(500, this->servers[this->client_requests[client_fd].server_fd]));
 	}
 	std::string::size_type start_pos = this->client_requests[client_fd].header.find("boundary=");
 	std::string boundary_value = "--" + this->client_requests[client_fd].header.substr(start_pos + 9, 
@@ -846,7 +863,7 @@ std::string	Server::handleUpload(int &client_fd, locationInfo &location, int met
 	if (storeFile(upload_dir, form_data) == 0){
 		closedir(dir);
 		this->client_requests[client_fd].status_code = 500;
-		return (this->handleError(500, this->client_requests[client_fd].server_fd));
+		return (handleError(500, this->servers[this->client_requests[client_fd].server_fd]));
 	}
 	this->client_requests[client_fd].status_code = 201;
 	closedir(dir);
