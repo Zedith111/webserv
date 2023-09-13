@@ -29,13 +29,13 @@ Check leak
     Duplicate upload of same file
 
 # To Do
-    Check file_path creation
+    Finish cgi
+    Correctly unchuncked
     When nested autoindex, the file path does not add up
-    Add error handling, when receive failed FD_CLR read_fd
-    Add error handling, when send failed FD_CLR write_fd
-    Add error handling, when select faied
+    When main dir has autoindex, sub dir should also have autoindex
 
-    Handle request and send response not at same for loop
+
+  
 
     Check receive
     Check send

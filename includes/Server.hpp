@@ -87,7 +87,7 @@ class Server{
 		int				checkReceive(std::string &msg);
 		int				checkHost(std::string &header, std::string &server_name);
 
-		std::string 	handleCGI(int &client_fd);
+		// std::string 	handleCGI(int &client_fd, locationInfo *location);
 		
 		std::string		checkDirectoryRoute(int server_fd, std::string &path);
 		std::string 	handlePostText(int &client_fd);

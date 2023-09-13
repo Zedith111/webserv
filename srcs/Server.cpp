@@ -190,8 +190,7 @@ void	Server::run(){
 			if (!FD_ISSET(i, &write_ready_fd))
 				continue ;
 			sendResponse(i);
-			std::cout << "Closing socket " << i << "\r";
-			std::cout.flush();
+			std::cout << "Closing socket " << i << std::endl;
 			FD_CLR(i, &this->write_fd); 
 			break ;
 		}
@@ -244,8 +243,8 @@ int	Server::handleConnection(int socket_fd){
 		return (-1);
 	}
 	while (bytes_read > 0){
-		std::cout << COLOR_GREEN << "Receiving " << bytes_read << COLOR_RESET << "\r";
-		std::cout.flush();
+		std::cout << COLOR_GREEN << "Receiving " << bytes_read << COLOR_RESET << "\r\n";
+		// std::cout.flush();
 		this->client_requests[socket_fd].whole_request.append(buffer, bytes_read);
 		memset(buffer, 0, BUFFER_SIZE);
 		bytes_read = recv(socket_fd, buffer, BUFFER_SIZE, 0);
@@ -301,23 +300,6 @@ void		Server::handleRequest(int socket_fd){
 		return ;
 	}
 
-	if(checkCGIRequest(route, this->servers[server_fd], this->client_requests[socket_fd])){
-		if (method != "GET" && method != "POST"){
-			std::cout << COLOR_RED << "Error. Method " << method << " is not allowed for cgi"  << COLOR_RESET << std::endl;
-			this->client_responses[socket_fd] = handleError(405, this->servers[this->client_requests[socket_fd].server_fd]);
-			this->client_requests[socket_fd].status_code = 405;
-			return ;
-		}
-		if (method == "GET")
-			this->client_requests[socket_fd].method = GET;
-		else
-			this->client_requests[socket_fd].method = POST;
-		this->client_requests[socket_fd].is_cgi = 1;
-		this->client_responses[socket_fd] = handleCGI(socket_fd);
-		std::cout << "Route: " << route << std::endl;
-		return ;
-	}
-
 	//Check if the path is valide. Will perform two check
 	//	First check for the path is exact match with what present in the location
 	//	If no, check for prefix match, and extract the path after the prefix
@@ -334,6 +316,25 @@ void		Server::handleRequest(int socket_fd){
 			this->client_requests[socket_fd].route = route;
 			this->client_requests[socket_fd].file_path = file_path;
 		}
+	}
+
+	if(checkCGIRequest(this->client_requests[socket_fd].file_path, this->servers[server_fd], this->client_requests[socket_fd])){
+		if (method != "GET" && method != "POST"){
+			std::cout << COLOR_RED << "Error. Method " << method << " is not allowed for cgi"  << COLOR_RESET << std::endl;
+			this->client_responses[socket_fd] = handleError(405, this->servers[this->client_requests[socket_fd].server_fd]);
+			this->client_requests[socket_fd].status_code = 405;
+			return ;
+		}
+		if (method == "GET")
+			this->client_requests[socket_fd].method = GET;
+		else
+			this->client_requests[socket_fd].method = POST;
+		this->client_requests[socket_fd].is_cgi = 1;
+		this->client_requests[socket_fd].status_code = handleCGI(
+			this->client_requests[socket_fd], *(this->servers[server_fd].locations[route]),
+			this->client_responses[socket_fd],
+			this->servers[server_fd]);
+		return ;
 	}
 
 	//Check for the content-length exceed the limit
@@ -381,8 +382,7 @@ void	Server::sendResponse(int socket_fd){
 	std::string res;
 	if (!this->client_requests[socket_fd].is_cgi){
 		int status_code = this->client_requests[socket_fd].status_code;
-		std::cout << COLOR_MAGENTA << "Sending response " << status_code << " to socket " << socket_fd << COLOR_RESET << "\r";
-		std::cout.flush();
+		std::cout << COLOR_MAGENTA << "Sending response " << status_code << " to socket " << socket_fd << COLOR_RESET << std::endl;
 		res = "HTTP/1.1 ";
 		res += intToString(status_code);
 		res += " ";
@@ -406,8 +406,8 @@ void	Server::sendResponse(int socket_fd){
 		std::cout << COLOR_RED << "Error. Send failed at " << socket_fd << strerror(errno) << COLOR_RESET << std::endl;
 	this->client_requests.erase(socket_fd);
 	this->client_responses.erase(socket_fd);
-	std::cout << COLOR_MAGENTA << "Sent " << byteSend << " bytes to socket: " << socket_fd << COLOR_RESET << "\r";
-	std::cout.flush();
+	std::cout << COLOR_MAGENTA << "Sent " << byteSend << " bytes to socket: " << socket_fd << COLOR_RESET << "\r\n";
+	// std::cout.flush();
 	close(socket_fd);
 }
 
@@ -475,88 +475,87 @@ int Server::checkHost(std::string &header, std::string &server_name){
 //Find intepretor
 //differntiate between get and post
 //set up env
-std::string Server::handleCGI(int &client_fd){
-	std::cout << "HANDLE CGI" << std::endl;
+// std::string Server::handleCGI(int &client_fd, locationInfo *location){
+// 	std::cout << "HANDLE CGI" << std::endl;
 
-	std::string cgi_path = this->client_requests[client_fd].file_path;
-	std::string interpretor = this->client_requests[client_fd].interpretor;
+// 	std::string cgi_path = location->root + "/" + this->client_requests[client_fd].file_path;
+// 	std::string interpretor = this->client_requests[client_fd].interpretor;
 	
-	std::cout << "Interpretor: " << interpretor << std::endl;
-	std::cout << "CGI Path: " << cgi_path << std::endl;
-	std::cout << "path: " << this->client_requests[client_fd].route << std::endl;
+// 	std::cout << "Interpretor: " << interpretor << std::endl;
+// 	std::cout << "CGI Path: " << cgi_path << std::endl;
 
-	if (access(cgi_path.c_str(), R_OK| X_OK) != 0){
-		std::cout << COLOR_RED << "Error: Unable to access cgi script: " << cgi_path << COLOR_RESET << std::endl;
-		this->client_requests[client_fd].status_code = 500;
-		return (handleError(500, this->servers[this->client_requests[client_fd].server_fd]));
-	}
+// 	if (access(cgi_path.c_str(), R_OK| X_OK) != 0){
+// 		std::cout << COLOR_RED << "Error: Unable to access cgi script: " << cgi_path << COLOR_RESET << std::endl;
+// 		this->client_requests[client_fd].status_code = 500;
+// 		return (handleError(500, this->servers[this->client_requests[client_fd].server_fd]));
+// 	}
 
-	if (access(interpretor.c_str(), R_OK| X_OK) != 0){
-		std::cout << COLOR_RED << "Error: Unable to access interpretor: " << interpretor << COLOR_RESET << std::endl;
-		this->client_requests[client_fd].status_code = 500;
-		return (handleError(500, this->servers[this->client_requests[client_fd].server_fd]));
-	}
+// 	if (access(interpretor.c_str(), R_OK| X_OK) != 0){
+// 		std::cout << COLOR_RED << "Error: Unable to access interpretor: " << interpretor << COLOR_RESET << std::endl;
+// 		this->client_requests[client_fd].status_code = 500;
+// 		return (handleError(500, this->servers[this->client_requests[client_fd].server_fd]));
+// 	}
 
-	int stdin = dup(STDIN_FILENO);
-	int stdout = dup(STDOUT_FILENO);
+// 	int stdin = dup(STDIN_FILENO);
+// 	int stdout = dup(STDOUT_FILENO);
 
-	//tempIn is used to store the duplicate script, tempOut is used to store the output
-	FILE *tempIn = std::tmpfile();
-	FILE *tempOut = std::tmpfile();
-	int fdIn = fileno(tempIn);
-	int fdOut = fileno(tempOut);
-	std::string res;
+// 	//tempIn is used to store the duplicate script, tempOut is used to store the output
+// 	FILE *tempIn = std::tmpfile();
+// 	FILE *tempOut = std::tmpfile();
+// 	int fdIn = fileno(tempIn);
+// 	int fdOut = fileno(tempOut);
+// 	std::string res;
 	
-	//Write the script to tempIn
-	FILE *script = fopen(cgi_path.c_str(), "r");
-	if (script == NULL){
-		std::cout << COLOR_RED << "Error: Unable to open cgi script: " << cgi_path << COLOR_RESET << std::endl;
-		this->client_requests[client_fd].status_code = 500;
-		return (handleError(500, this->servers[this->client_requests[client_fd].server_fd]));
-	}
+// 	//Write the script to tempIn
+// 	FILE *script = fopen(cgi_path.c_str(), "r");
+// 	if (script == NULL){
+// 		std::cout << COLOR_RED << "Error: Unable to open cgi script: " << cgi_path << COLOR_RESET << std::endl;
+// 		this->client_requests[client_fd].status_code = 500;
+// 		return (handleError(500, this->servers[this->client_requests[client_fd].server_fd]));
+// 	}
 
-	char buffer[1024];
-	int bytes_read;
-	while ((bytes_read = std::fread(buffer, 1, 1024, script)) > 0){
-		std::fwrite(buffer, 1, bytes_read, tempIn);
-	}
-	fclose(script);
-	std::rewind(tempIn);
+// 	char buffer[1024];
+// 	int bytes_read;
+// 	while ((bytes_read = std::fread(buffer, 1, 1024, script)) > 0){
+// 		std::fwrite(buffer, 1, bytes_read, tempIn);
+// 	}
+// 	fclose(script);
+// 	std::rewind(tempIn);
 
-	pid_t child = fork();
-	if (child < 0){
-		std::cout << COLOR_RED << "Error: Unable to fork" << COLOR_RESET << std::endl;
-		fclose(tempIn);
-		fclose(tempOut);
-		this->client_requests[client_fd].status_code = 500;
-		return (handleError(500, this->servers[this->client_requests[client_fd].server_fd]));
-	}
-	if (child == 0){
-		dup2(fdIn, STDIN_FILENO);
-		dup2(fdOut, STDOUT_FILENO);
-		char *argv[3];
-		argv[0] = const_cast<char *>(this->client_requests[client_fd].interpretor.c_str());
-		argv[1] = strdup(this->client_requests[client_fd].file_path.c_str());
-		argv[2] = NULL;
+// 	pid_t child = fork();
+// 	if (child < 0){
+// 		std::cout << COLOR_RED << "Error: Unable to fork" << COLOR_RESET << std::endl;
+// 		fclose(tempIn);
+// 		fclose(tempOut);
+// 		this->client_requests[client_fd].status_code = 500;
+// 		return (handleError(500, this->servers[this->client_requests[client_fd].server_fd]));
+// 	}
+// 	if (child == 0){
+// 		dup2(fdIn, STDIN_FILENO);
+// 		dup2(fdOut, STDOUT_FILENO);
+// 		char *argv[3];
+// 		argv[0] = const_cast<char *>(this->client_requests[client_fd].interpretor.c_str());
+// 		argv[1] = strdup(this->client_requests[client_fd].file_path.c_str());
+// 		argv[2] = NULL;
 
-		execve(argv[0], argv, NULL);
-	}
-	else{
-		int status;
-		waitpid(child, &status, 0);
-		char buffer[1024];
-		std::rewind(tempOut);
-		while ((bytes_read = std::fread(buffer, 1, 1024, tempOut)) > 0){
-			res.append(buffer, bytes_read);
-		}
-	}
-	dup2(stdin, STDIN_FILENO);
-	dup2(stdout, STDOUT_FILENO);
-	fclose(tempIn);
-	fclose(tempOut);
+// 		execve(argv[0], argv, NULL);
+// 	}
+// 	else{
+// 		int status;
+// 		waitpid(child, &status, 0);
+// 		char buffer[1024];
+// 		std::rewind(tempOut);
+// 		while ((bytes_read = std::fread(buffer, 1, 1024, tempOut)) > 0){
+// 			res.append(buffer, bytes_read);
+// 		}
+// 	}
+// 	dup2(stdin, STDIN_FILENO);
+// 	dup2(stdout, STDOUT_FILENO);
+// 	fclose(tempIn);
+// 	fclose(tempOut);
 
-	return (res);
-}
+// 	return (res);
+// }
 
 /**
  * @brief Called when no exact match found in route. Will check for prefix match and return the file path. 
