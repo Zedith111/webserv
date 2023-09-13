@@ -6,19 +6,31 @@ To add new error page
     configParser::initDefaultErrorPages
     Server::Server
 
+# NGINX Check
+location /dir {
+    index Youpie
+}
+when access /dir/nop will return 404 or not
+
+Post/Put to /some_path, check will save it.
+upload store and path, which will be precednece
+
 # Test
 Check leak
 ## Get
-    file
+    direct file
     index
     autoindex
         nesting directory with autoindex
+        failed
     redirection
 
 ## Post
     Duplicate upload of same file
 
 # To Do
+    Check file_path creation
+    When nested autoindex, the file path does not add up
     Add error handling, when receive failed FD_CLR read_fd
     Add error handling, when send failed FD_CLR write_fd
     Add error handling, when select faied

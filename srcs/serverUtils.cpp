@@ -54,10 +54,10 @@ int checkCGIRequest(std::string &path, serverConf &server, requestData &request)
 }
 
 /**
- * @brief Parse the body of a POST request with multipart/form-data encoding. Separate
+ * @brief Parse the body of a POST or PUT request with multipart/form-data encoding. Separate
  * the data and put into a vector of formData struct.
  */
-formData	parseUpload(std::string &body, std::string &boundary){
+formData	parseMultipartFormData(std::string &body, std::string &boundary){
 	formData form_data;
 	std::string::size_type current_pos = body.find(boundary);
 	while (current_pos != std::string::npos){
@@ -91,19 +91,23 @@ formData	parseUpload(std::string &body, std::string &boundary){
 }
 
 /**
- * @brief Store the file in the upload_path specified in the location block.
+ * @brief Create or overwrite a file with the data provided.
  */
-int	storeFile(std::string &directory_path, formData &form_data){
-	std::string file_path = directory_path + "/" + form_data.filename;
-	std::ofstream file(file_path.c_str());
+int 		storeFile(std::string &file_path, std::string &data, int overwrite){
+	std::ofstream file;
+	if (overwrite == 1)
+		file.open(file_path.c_str(), std::ios::trunc);
+	else
+		file.open(file_path.c_str(), std::ios::app);
 	if (!file.is_open()){
 		std::cout << "Error opening file: " << file_path << std::endl;
 		return (0);
 	}
-	file << form_data.data;
+	file << data;
 	file.close();
 	return (1);
 }
+
 
 /**
  * @brief Return the correct error page based on error code and server config
@@ -136,23 +140,76 @@ int generateAutoindex(serverConf &conf,std::string &route, std::string &file_pat
 	return (200);
 }
 
+int handleBoundaryUpload(requestData &request, locationInfo &location, int overwrite){
+	std::string upload_dir;
 
-// std::string generateAutoindex(serverConf &conf,std::string &route, std::string &file_path, int &status_code){
-// 	if (checkIsDirectory(file_path) <= 0){
-// 		status_code = 403;
-// 		return (handleError(403, conf));
-// 	}
-// 	std::string res;
-// 	res += "<html>\n<head>\n<title>Index of " + route + "</title>\n</head>\n<body>\n<h1>Index of " + route + "</h1>\n";
-// 	res += "<table>\n<tr>\n<th>Name</th>\n<th>Last Modified</th>\n<th>Size</th>\n</tr>\n";
-// 	try{
-// 		res += printDirectory(route, file_path);
-// 	}
-// 	catch(const std::exception &e){
-// 		std::cout << COLOR_RED << "Error. Unable to open directory " << file_path << COLOR_RESET << std::endl;
-// 		status_code = 500;
-// 		return (handleError(500, conf));
-// 	}
-// 	res += "</table></body>\n</html>";
-// 	return (res);
-// }
+	if (location.upload_path.empty())
+		upload_dir = location.root;
+	else
+		upload_dir = location.upload_path;
+	if (checkIsDirectory(upload_dir) != 1){
+		std::cout << COLOR_RED << "Error. Upload directory not found" << COLOR_RESET << std::endl;
+		return (0);
+	}
+	DIR *dir = opendir(upload_dir.c_str());
+	if (dir == NULL){
+		std::cout << COLOR_RED << "Error. Unable to open directory " << upload_dir << COLOR_RESET << std::endl;
+		return (0);
+	}
+	std::string::size_type start_pos = request.header.find("boundary=");
+	std::string boundary = "--" + request.header.substr(start_pos + 9, request.header.find("\r\n", start_pos) - start_pos - 9);
+	formData form_data = parseMultipartFormData(request.body, boundary);
+	std::string whole_path = upload_dir + "/" + form_data.filename;
+	int mult = 1;
+	if (access(whole_path.c_str(), F_OK) == 0){
+		if (overwrite == 0){
+			std::cout << COLOR_RED << "Error. File already exist" << COLOR_RESET << std::endl;
+			return (0);
+		}
+		else{
+			std::cout << COLOR_YELLOW << "File already exist. Overwriting..." << COLOR_RESET << std::endl;
+			mult = 2;
+		}
+	}
+	int ret = storeFile(whole_path, form_data.data, overwrite);
+	closedir(dir);
+	return (ret * mult);
+}
+
+/**
+ * @brief Upload the file to respective directory when the content type is not multipart/form-data.
+ * Return 1 if successful create, 2 when successful overwrite, 0 if fail.
+ */
+int handleNormalUpload(requestData &request, locationInfo &location, int overwrite){	
+	std::string upload_dir;
+	
+	if (location.upload_path.empty())
+		upload_dir = location.root;
+	else
+		upload_dir = location.upload_path;
+	std::cout << COLOR_CYAN << "Upload " << request.file_path << " to " << upload_dir << COLOR_RESET << std::endl;
+	if (checkIsDirectory(upload_dir) != 1){
+		std::cout << COLOR_RED << "Error. Upload directory not found" << COLOR_RESET << std::endl;
+		return (0);
+	}
+	DIR *dir = opendir(upload_dir.c_str());
+	if (dir == NULL){
+		std::cout << COLOR_RED << "Error. Unable to open directory " << upload_dir << COLOR_RESET << std::endl;
+		return (0);
+	}
+	std::string whole_path = upload_dir + request.file_path;
+	int mult = 1;
+	if (access(whole_path.c_str(), F_OK) == 0){
+		if (overwrite == 0){
+			std::cout << COLOR_RED << "Error. File already exist" << COLOR_RESET << std::endl;
+			return (0);
+		}
+		else{
+			std::cout << COLOR_YELLOW << "File already exist. Overwriting..." << COLOR_RESET << std::endl;
+			mult = 2;
+		}
+	}
+	int ret = storeFile(whole_path, request.body, overwrite);
+	closedir(dir);
+	return (ret * mult);
+}

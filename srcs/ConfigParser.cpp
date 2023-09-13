@@ -403,6 +403,7 @@ int ConfigParser::initDefaultErrorpages(){
 	this->default_error_pages[403] = "./default_error_pages/403.html";
 	this->default_error_pages[404] = "./default_error_pages/404.html";
 	this->default_error_pages[405] = "./default_error_pages/405.html";
+	this->default_error_pages[409] = "./default_error_pages/409.html";
 	this->default_error_pages[413] = "./default_error_pages/413.html";
 	this->default_error_pages[415] = "./default_error_pages/415.html";
 	this->default_error_pages[500] = "./default_error_pages/500.html";
@@ -425,7 +426,7 @@ int ConfigParser::initDefaultErrorpages(){
 }
 
 void ConfigParser::addErrorpages(serverConf *current_conf){
-	int all_codes[] = {400, 403, 404, 405, 413, 415, 500, 501};
+	int all_codes[] = {400, 403, 404, 405, 409, 413, 415, 500, 501};
 	const int codes_size = sizeof(all_codes) / sizeof(int);
 
 	for (int i = 0; i < codes_size; i++){

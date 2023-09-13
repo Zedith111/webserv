@@ -26,6 +26,7 @@ Server::Server(){
 	this->reason_phrases[403] = "Forbidden";
 	this->reason_phrases[404] = "Not Found";
 	this->reason_phrases[405] = "Method Not Allowed";
+	this->reason_phrases[409] = "Conflict";
 	this->reason_phrases[413] = "Request Enity Too Large";
 	this->reason_phrases[415] = "Unsupported Media Type";
 	this->reason_phrases[500] = "Internal Server Error";
@@ -124,8 +125,6 @@ int	Server::init(std::vector<serverConf *> confs){
  * 	3) If it is a ongoing connection, handle the request
  */
 void	Server::run(){
-	// std::cout << "Server is running" << std::endl;
-	
 	fd_set 			read_ready_fd, write_ready_fd;
 	struct timeval	timeout;
 
@@ -191,7 +190,8 @@ void	Server::run(){
 			if (!FD_ISSET(i, &write_ready_fd))
 				continue ;
 			sendResponse(i);
-			std::cout << "Closing socket " << i << std::endl;
+			std::cout << "Closing socket " << i << "\r";
+			std::cout.flush();
 			FD_CLR(i, &this->write_fd); 
 			break ;
 		}
@@ -238,12 +238,14 @@ int	Server::handleConnection(int socket_fd){
 	}
 	if (bytes_read < 0){
 		std::cout << COLOR_RED << "Error. recv failed at " << socket_fd << ". " << strerror(errno) << COLOR_RESET <<  std::endl;
+
 		this->client_responses[socket_fd] = handleError(500, this->servers[this->client_requests[socket_fd].server_fd]);
 		this->client_requests[socket_fd].status_code = 500;
 		return (-1);
 	}
 	while (bytes_read > 0){
-		std::cout << COLOR_GREEN << "Receiving " << bytes_read << COLOR_RESET << std::endl;
+		std::cout << COLOR_GREEN << "Receiving " << bytes_read << COLOR_RESET << "\r";
+		std::cout.flush();
 		this->client_requests[socket_fd].whole_request.append(buffer, bytes_read);
 		memset(buffer, 0, BUFFER_SIZE);
 		bytes_read = recv(socket_fd, buffer, BUFFER_SIZE, 0);
@@ -312,6 +314,7 @@ void		Server::handleRequest(int socket_fd){
 			this->client_requests[socket_fd].method = POST;
 		this->client_requests[socket_fd].is_cgi = 1;
 		this->client_responses[socket_fd] = handleCGI(socket_fd);
+		std::cout << "Route: " << route << std::endl;
 		return ;
 	}
 
@@ -361,31 +364,14 @@ void		Server::handleRequest(int socket_fd){
 			return ;
 		}
 	}
-	
-	//Test Get
-	if (method_int == 0){
-		this->client_responses[socket_fd] = "";
-		this->client_requests[socket_fd].status_code = handleGet(
-			this->client_requests[socket_fd],
-			*(this->servers[server_fd].locations[route]),
-			this->client_responses[socket_fd],
-			this->servers[server_fd]
-		);
-	}
 
-	typedef int *func(requestData &, locationInfo &, std::string &, serverConf &);
+	typedef int (*func)(requestData &, locationInfo &, std::string &, serverConf &);
 	func methods[METHOD_COUNT] = {&handleGet, &handlePost, &handlePut, &handleHead, &handleDelete};
-	this->client_requests[socket_fd].status_code = (this->*methods[method_int])
+	this->client_requests[socket_fd].status_code = (*methods[method_int])
 													(this->client_requests[socket_fd],
 													*(this->servers[server_fd].locations[route]),
 													this->client_responses[socket_fd],
 													this->servers[server_fd]);
-
-	// this->client_requests[socket_fd].status_code = 200;
-	// typedef std::string (Server::*func)(int &, locationInfo &);
-	// func methods[METHOD_COUNT] = {&Server::handleGet, &Server::handlePost, &Server::handlePut, &Server::handleHead, &Server::handleDelete};
-	// this->client_responses[socket_fd] = (this->*methods[this->client_requests[socket_fd].method])
-	// 										(socket_fd, *(this->servers[server_fd].locations[route]));
 }
 
 /**
@@ -395,7 +381,8 @@ void	Server::sendResponse(int socket_fd){
 	std::string res;
 	if (!this->client_requests[socket_fd].is_cgi){
 		int status_code = this->client_requests[socket_fd].status_code;
-		std::cout << COLOR_MAGENTA << "Sending response " << status_code << " to socket " << socket_fd << COLOR_RESET << std::endl;
+		std::cout << COLOR_MAGENTA << "Sending response " << status_code << " to socket " << socket_fd << COLOR_RESET << "\r";
+		std::cout.flush();
 		res = "HTTP/1.1 ";
 		res += intToString(status_code);
 		res += " ";
@@ -419,7 +406,8 @@ void	Server::sendResponse(int socket_fd){
 		std::cout << COLOR_RED << "Error. Send failed at " << socket_fd << strerror(errno) << COLOR_RESET << std::endl;
 	this->client_requests.erase(socket_fd);
 	this->client_responses.erase(socket_fd);
-	std::cout << COLOR_MAGENTA << "Sent " << byteSend << " bytes to socket: " << socket_fd << COLOR_RESET << std::endl;
+	std::cout << COLOR_MAGENTA << "Sent " << byteSend << " bytes to socket: " << socket_fd << COLOR_RESET << "\r";
+	std::cout.flush();
 	close(socket_fd);
 }
 
@@ -451,20 +439,6 @@ int	Server::checkReceive(std::string &msg){
 	}
 	return (1);
 }
-
-/**
- * @brief Read the respective error code and write the html file to the response body
- */
-// std::string Server::handleError(int status_code, int server_fd){
-// 	serverConf conf = this->servers[server_fd];
-// 	std::string res = conf.error_pages[status_code];
-// 	std::ifstream file(res.c_str());
-// 	std::stringstream buffer;
-// 	buffer << file.rdbuf();
-// 	std::string content = buffer.str();
-// 	file.close();
-// 	return (content);
-// }
 
 /**
  * @brief Find the host name parameter and match it with the server name parameter
@@ -509,6 +483,7 @@ std::string Server::handleCGI(int &client_fd){
 	
 	std::cout << "Interpretor: " << interpretor << std::endl;
 	std::cout << "CGI Path: " << cgi_path << std::endl;
+	std::cout << "path: " << this->client_requests[client_fd].route << std::endl;
 
 	if (access(cgi_path.c_str(), R_OK| X_OK) != 0){
 		std::cout << COLOR_RED << "Error: Unable to access cgi script: " << cgi_path << COLOR_RESET << std::endl;
@@ -583,202 +558,6 @@ std::string Server::handleCGI(int &client_fd){
 	return (res);
 }
 
-
-
-/**
- * @brief Read the file path of a target location and return the body of response
- * Handle get request, will follow order below
- * 		- Search for specific file eg. /index.html. If not found will sent 404
- * 		- Handle redirection
- * 		- Use index parameter
- * 		- Use autoindex parameter
- */
-// std::string	Server::handleGet(int &client_fd, locationInfo &location){
-// 	requestData &request = this->client_requests[client_fd];
-// 	if (request.file_path.empty() && location.index.empty() && location.redirect_address.empty()){
-// 		if (location.autoindex == true){
-// 			return (generateAutoindex(client_fd, request.route, location.root));
-// 		}
-// 		else{
-// 			this->client_requests[client_fd].status_code = 404;
-// 			return (handleError(404, this->servers[this->client_requests[client_fd].server_fd]));
-// 		}
-// 	}
-	
-// 	std::string whole_path;
-// 	if (!request.file_path.empty()){
-// 		whole_path = location.root + request.file_path;
-// 		if (checkIsDirectory(whole_path) == 1){
-// 			std::map<std::string, locationInfo *>::iterator it;
-// 			it = this->servers[request.server_fd].locations.find(request.route);
-// 			if (it != this->servers[request.server_fd].locations.end()){
-// 				if (it->second->autoindex == true){
-// 					return (generateAutoindex(client_fd, request.route, whole_path));
-// 				}
-// 			}
-// 			this->client_requests[client_fd].status_code = 404;
-// 			return (handleError(404, this->servers[this->client_requests[client_fd].server_fd]));
-// 		}
-// 	}
-// 	else if (!location.redirect_address.empty()){
-// 		this->client_requests[client_fd].status_code = 301;
-// 		return (location.redirect_address);
-// 	}
-// 	else{
-// 		whole_path = location.root + "/" + location.index;
-// 	}
-// 	std::ifstream file(whole_path.c_str());
-// 	if (!file.is_open()){
-// 		std::cout << COLOR_RED << "Error. File not found. " << whole_path << COLOR_RESET << std::endl;
-// 		this->client_requests[client_fd].status_code = 404;
-// 		return (handleError(404, this->servers[this->client_requests[client_fd].server_fd]));
-// 	}
-// 	std::stringstream buffer;
-// 	buffer << file.rdbuf();
-// 	std::string content = buffer.str();
-// 	file.close();
-// 	return (content);
-// }
-
-/**
- * @brief The server will only handle two type of content type: "text/plain" and "multipart/form-data", other will return 400.
- * "text/plain" will stored the request body in database.txt
- * "multipart/form-data" will save the file in the upload directory
- */
-std::string	Server::handlePost(int &client_fd, locationInfo &location){
-	// std::cout << "HANDLE POST" << std::endl;
-	// std::string whole_path = location.root + this->client_requests[client_fd].file_path;
-	// std::cout << "Whole Request: " << this->client_requests[client_fd].whole_request << std::endl;
-	requestData request = this->client_requests[client_fd];
-	std::string::size_type content_type = request.header.find("Content-Type: ");
-
-	if (content_type == std::string::npos){
-		this->client_requests[client_fd].status_code = 400;
-		return (handleError(400, this->servers[this->client_requests[client_fd].server_fd]));
-	}
-
-	if (location.max_body_size_set == 1){
-		std::string content = this->client_requests[client_fd].body;
-		if (content.size() > location.max_body_size){
-			this->client_requests[client_fd].status_code = 413;
-			return (handleError(413, this->servers[this->client_requests[client_fd].server_fd]));
-		}
-	}
-	
-	std::string content_type_value = request.header.substr(content_type + 14, request.header.find("\r\n", content_type) - content_type - 14);
-	
-	if (content_type_value.find("multipart/form-data") == std::string::npos &&
-		 content_type_value != "text/plain"){
-	}
-
-	if (content_type_value == "text/plain"){
-		std::cout << "Handle text plain" << std::endl;
-		return (handlePostText(client_fd));
-	}
-
-	else if (content_type_value.find("multipart/form-data") != std::string::npos){
-		std::cout << "Handle upload" << std::endl;
-		return (handleUpload(client_fd, location, 0));
-	}
-	else{
-		this->client_requests[client_fd].status_code = 415;
-		return (handleError(415, this->servers[this->client_requests[client_fd].server_fd]));
-	}
-}
-
-/**
- * @brief A PUT request is handled the almost the same way as POST request. 
- * The only difference is that PUT will overwrite the file if it exist and return 200 when overwrite happen
- */
-std::string	Server::handlePut(int &client_fd, locationInfo &location){
-	std::cout << "HANDLE PUT" << std::endl;
-	std::string whole_path = location.root + this->client_requests[client_fd].file_path;
-	std::cout << "Whole path: " << whole_path << std::endl;
-	std::cout << "Whole Request: " << this->client_requests[client_fd].whole_request << std::endl;
-	requestData request = this->client_requests[client_fd];
-	std::string::size_type content_type = request.header.find("Content-Type: ");
-
-	if (content_type == std::string::npos){
-		this->client_requests[client_fd].status_code = 400;
-		return (handleError(400, this->servers[this->client_requests[client_fd].server_fd]));
-	}
-
-	if (location.max_body_size_set == 1){
-		std::string content = this->client_requests[client_fd].body;
-		if (content.size() > location.max_body_size){
-			this->client_requests[client_fd].status_code = 413;
-			return (handleError(413, this->servers[this->client_requests[client_fd].server_fd]));
-		}
-	}
-	
-	std::string content_type_value = request.header.substr(content_type + 14, request.header.find("\r\n", content_type) - content_type - 14);
-	
-	if (content_type_value.find("multipart/form-data") == std::string::npos &&
-		 content_type_value != "text/plain"){
-	}
-
-	if (content_type_value == "text/plain"){
-		std::string content = this->client_requests[client_fd].body;
-		std::ifstream file("database.txt");
-		std::string line;
-		std::string whole_line;
-		while (std::getline(file, content)){
-			whole_line += line;
-		}
-		if (whole_line.find(content) != std::string::npos){
-			std::cout << "Repeat Request" << std::endl;
-			this->client_requests[client_fd].status_code = 200;
-			return ("");
-		}
-		else{
-			std::cout << "Not Repeated Request" << std::endl;
-			std::cout << "Handle Text Plain" << std::endl;
-			return (handlePostText(client_fd));
-		}
-	}
-
-	else if (content_type_value.find("multipart/form-data") != std::string::npos){
-		return (handleUpload(client_fd, location, 1));
-	}
-	else{
-		this->client_requests[client_fd].status_code = 415;
-		return (handleError(415, this->servers[this->client_requests[client_fd].server_fd]));
-	}
-}
-
-std::string	Server::handleHead(int &client_fd, locationInfo &location){
-	std::string whole_path;
-	if (!this->client_requests[client_fd].file_path.empty()){
-		whole_path = location.root + this->client_requests[client_fd].file_path;
-	}
-	else{
-		whole_path = location.root + "/" + location.index;
-	}
-	std::ifstream file(whole_path.c_str());
-	if (!file.is_open()){
-		std::cout << COLOR_RED << "Error. File not found. " << whole_path << COLOR_RESET << std::endl;
-		this->client_requests[client_fd].status_code = 404;
-		return ("");
-	}
-	this->client_requests[client_fd].status_code = 200;
-	file.close();
-	return ("");
-}
-
-std::string	Server::handleDelete(int &client_fd, locationInfo &location){
-	if (this->client_requests[client_fd].file_path.empty()){
-		this->client_requests[client_fd].status_code = 404;
-		return (handleError(404, this->servers[this->client_requests[client_fd].server_fd]));
-	}
-	std::string whole_path = location.root + this->client_requests[client_fd].file_path;
-	if (std::remove(whole_path.c_str()) != 0){
-		this->client_requests[client_fd].status_code = 404;
-		return (handleError(404, this->servers[this->client_requests[client_fd].server_fd]));
-	}
-	this->client_requests[client_fd].status_code = 204;
-	return ("");
-}
-
 /**
  * @brief Called when no exact match found in route. Will check for prefix match and return the file path. 
  * Also modify the input argument to remove the file name from the path.
@@ -799,75 +578,6 @@ std::string Server::checkDirectoryRoute(int server_fd, std::string &route){
 		file_path = "/" + file_path;
 	}
 	return (file_path);
-}
-
-// std::string	Server::generateAutoindex(int &client_fd, std::string &route, std::string &file_path){
-// 		std::cout << "Route: " << route << std::endl;
-// 		std::cout << "File Path: " << file_path << std::endl;
-
-// 		if (checkIsDirectory(file_path) <= 0){
-// 			this->client_requests[client_fd].status_code = 403;
-// 			return (handleError(403, this->servers[this->client_requests[client_fd].server_fd]));
-// 		}
-// 		std::string res;
-// 		res += "<html>\n<head>\n<title>Index of " + route + "</title>\n</head>\n<body>\n<h1>Index of " + route + "</h1>\n";
-// 		res += "<table>\n<tr>\n<th>Name</th>\n<th>Last Modified</th>\n<th>Size</th>\n</tr>\n";
-// 		try{
-// 			res += printDirectory(route, file_path);
-// 		}
-// 		catch(const std::exception &e)
-// 		{
-// 			std::cout << COLOR_RED << "Error. Unable to open directory " << file_path << COLOR_RESET << std::endl;
-// 			this->client_requests[client_fd].status_code = 500;
-// 			return (handleError(500, this->servers[this->client_requests[client_fd].server_fd]));
-// 		}
-// 		res += "</table></body>\n</html>";
-// 		return (res);
-// }
-
-/**
- * @brief Method is used to determine whether to create the file or overwrite the file. 0 for post, 1 for put
- */
-std::string	Server::handleUpload(int &client_fd, locationInfo &location, int method){
-
-	std::string upload_dir = location.root + location.upload_path;
-	if (DEBUG)
-		std::cout << "Upload Directory: " << upload_dir << std::endl;
-	if (checkIsDirectory(upload_dir) != 1){
-		std::cout << COLOR_RED << "Error. Upload directory not found" << COLOR_RESET << std::endl;
-		this->client_requests[client_fd].status_code = 500;
-		return (handleError(500, this->servers[this->client_requests[client_fd].server_fd]));
-	}
-
-	DIR *dir = opendir(upload_dir.c_str());
-	if (dir == NULL){
-		std::cout << COLOR_RED << "Error. Unable to open upload directory" << COLOR_RESET << std::endl;
-		this->client_requests[client_fd].status_code = 500;
-		return (handleError(500, this->servers[this->client_requests[client_fd].server_fd]));
-	}
-	std::string::size_type start_pos = this->client_requests[client_fd].header.find("boundary=");
-	std::string boundary_value = "--" + this->client_requests[client_fd].header.substr(start_pos + 9, 
-		this->client_requests[client_fd].header.find("\r\n", start_pos) - start_pos - 9);
-	
-	formData form_data = parseUpload(this->client_requests[client_fd].body, boundary_value);
-	if (method == 1){
-		struct dirent *ent;
-		while ((ent = readdir(dir)) != NULL) {
-        	if (std::strcmp(ent->d_name, form_data.filename.c_str()) == 0) {
-            	std::cout << "Repeated file: " << form_data.filename << std::endl;
-				this->client_requests[client_fd].status_code = 200;
-				return ("");
-			}
-		}
-	}
-	if (storeFile(upload_dir, form_data) == 0){
-		closedir(dir);
-		this->client_requests[client_fd].status_code = 500;
-		return (handleError(500, this->servers[this->client_requests[client_fd].server_fd]));
-	}
-	this->client_requests[client_fd].status_code = 201;
-	closedir(dir);
-	return ("");
 }
 
 std::string Server::handlePostText(int &client_fd){

@@ -85,20 +85,11 @@ class Server{
 		void			handleRequest(int socket_fd);
 		void				sendResponse(int socket_fd);
 		int				checkReceive(std::string &msg);
-		// std::string		handleError(int status_code, int server_fd);
 		int				checkHost(std::string &header, std::string &server_name);
 
 		std::string 	handleCGI(int &client_fd);
-
-		// std::string		handleGet(int &client_fd, locationInfo &location);
-		// std::string		handlePost(int &client_fd, locationInfo &location);
-		// std::string		handlePut(int &client_fd, locationInfo &location);
-		// std::string		handleHead(int &client_fd, locationInfo &location);
-		// std::string		handleDelete(int &client_fd, locationInfo &location);
-
+		
 		std::string		checkDirectoryRoute(int server_fd, std::string &path);
-		// std::string		generateAutoindex(int &client_fd, std::string &route, std::string &file_path);
-		std::string		handleUpload(int &client_fd, locationInfo &location, int method);
 		std::string 	handlePostText(int &client_fd);
 	public:
 		Server();

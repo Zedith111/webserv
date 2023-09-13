@@ -28,10 +28,18 @@ struct requestData;
 
 METHOD		getMethod(std::string &method, std::vector<std::string> &limit_except);
 int 		checkCGIRequest(std::string &path, serverConf &server, requestData &request);
-formData	parseUpload(std::string &body, std::string &boundary);
-int			storeFile(std::string &directory_path, formData &form_data);
+formData	parseMultipartFormData(std::string &body, std::string &boundary);
+
+int			storeFormData(std::string &directory_path, formData &form_data);
+int 		storeFile(std::string &file_path, std::string &data, int overwrite);
+int			checkFileExist(std::string &file_path);
+
 std::string handleError(int error_code, serverConf &conf);
 int generateAutoindex(serverConf &conf,std::string &route, std::string &file_path, std::string &response);
+
+int handleNormalUpload(requestData &request, locationInfo &location, int overwrite);
+int handleBoundaryUpload(requestData &request, locationInfo &location, int overwrite);
+
 
 
 #endif
