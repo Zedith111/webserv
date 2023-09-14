@@ -30,6 +30,7 @@ Check leak
 
 # To Do
     Finish cgi
+    Finish cgi env
     Correctly unchuncked
     When nested autoindex, the file path does not add up
     When main dir has autoindex, sub dir should also have autoindex
