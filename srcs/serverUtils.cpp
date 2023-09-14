@@ -46,6 +46,7 @@ int checkCGIRequest(std::string &path, serverConf &server, requestData &request)
 
 	std::multimap<std::string, std::string>::iterator it = server.cgi_map.find(extension);
 	if (it == server.cgi_map.end()){
+		std::cout << "not in map" << std::endl;
 		return (0);
 	}
 	request.interpretor = it->second;
@@ -212,4 +213,23 @@ int handleNormalUpload(requestData &request, locationInfo &location, int overwri
 	int ret = storeFile(whole_path, request.body, overwrite);
 	closedir(dir);
 	return (ret * mult);
+}
+
+std::string processChunk(std::string &request){
+	std::string header = request.substr(0, request.find("\r\n\r\n"));
+	std::string body = request.substr(request.find("\r\n\r\n") + 4, request.length() - 1);
+	std::string subchunk = body.substr(0,100);
+	std::string res = "";
+	int chunk_size = strtol(subchunk.c_str(), NULL, 16);
+	size_t i = 0;
+
+	while (chunk_size){
+		i = body.find("\r\n", i) + 2;
+		res += body.substr(i, chunk_size);
+		i += chunk_size + 2;
+		subchunk = body.substr(i, 100);
+		chunk_size = strtol(subchunk.c_str(), NULL, 16);
+	}
+
+	return (res + "\r\n\r\n");
 }

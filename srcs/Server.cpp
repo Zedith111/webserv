@@ -300,6 +300,11 @@ void		Server::handleRequest(int socket_fd){
 		return ;
 	}
 
+	if (header.find("Transfer-Encoding: chunked") != std::string::npos){
+		this->client_requests[socket_fd].body = processChunk(this->client_requests[socket_fd].whole_request);
+		// std::cout << "After chunked Body: " << this->client_requests[socket_fd].body	<< std::endl;
+	}
+
 	//Check if the path is valide. Will perform two check
 	//	First check for the path is exact match with what present in the location
 	//	If no, check for prefix match, and extract the path after the prefix
@@ -406,8 +411,7 @@ void	Server::sendResponse(int socket_fd){
 		std::cout << COLOR_RED << "Error. Send failed at " << socket_fd << strerror(errno) << COLOR_RESET << std::endl;
 	this->client_requests.erase(socket_fd);
 	this->client_responses.erase(socket_fd);
-	std::cout << COLOR_MAGENTA << "Sent " << byteSend << " bytes to socket: " << socket_fd << COLOR_RESET << "\r\n";
-	// std::cout.flush();
+	std::cout << COLOR_MAGENTA << "Sent " << byteSend << " bytes to socket: " << socket_fd << COLOR_RESET << std::endl;
 	close(socket_fd);
 }
 

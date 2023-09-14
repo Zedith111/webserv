@@ -40,6 +40,8 @@ int generateAutoindex(serverConf &conf,std::string &route, std::string &file_pat
 int handleNormalUpload(requestData &request, locationInfo &location, int overwrite);
 int handleBoundaryUpload(requestData &request, locationInfo &location, int overwrite);
 
+std::string processChunk(std::string &request);
+
 
 
 #endif
