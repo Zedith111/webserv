@@ -6,7 +6,7 @@
 /*   By: zah <zah@student.42kl.edu.my>              +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2023/09/13 13:09:33 by zah               #+#    #+#             */
-/*   Updated: 2023/09/14 20:49:18 by zah              ###   ########.fr       */
+/*   Updated: 2023/09/15 16:23:21 by zah              ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -41,7 +41,7 @@ char **createEnv(requestData &request, serverConf &conf){
 	std::string whole_path = request.route + "/" + request.file_path; 
 	std::cout << "Whole path: " << whole_path << std::endl;
 	addEnv("PATH_INFO=" + whole_path, env);
-	addEnv("PATH_TRANSLATED=" + whole_path, env);
+	addEnv("HTTP_X_SECRET_HEADER_FOR_TEST=1", env);
 	addEnv("SCRIPT_NAME=" + request.interpretor, env);
 	addEnv("DOCUMENT_ROOT=" + request.interpretor, env);
 	addEnv("REMOTE_ADDR=127.0.0.1", env);
@@ -70,10 +70,11 @@ int handleCGI(requestData &request, locationInfo &location, std::string &respons
 			return (500);
 		}
 	}
-	if (DEBUG){
+
+	// if (DEBUG){
 		std::cout << "CGI Path: " << cgi_path << std::endl;
 		std::cout << "Interpretor: " << interpretor << std::endl;
-	}
+	// }
 
 	//Save stdin and stdout to reset back after 
 	int dup_stdin = dup(STDIN_FILENO);
@@ -89,11 +90,6 @@ int handleCGI(requestData &request, locationInfo &location, std::string &respons
 	}
 	std::rewind(tempIn);
 
-	char **env = createEnv(request, conf);
-	// for (int i =0; i < ENV_COUNT-1; i++){
-	// 	std::cout << env[i] << std::endl;
-	// }
-
 	pid_t pid = fork();
 	if (pid < 0){
 		std::cout << COLOR_RED << "Error: Unable to fork" << COLOR_RESET << std::endl;
@@ -103,14 +99,16 @@ int handleCGI(requestData &request, locationInfo &location, std::string &respons
 		return (500);
 	}
 	if (pid == 0){
+		char **env = createEnv(request, conf);
 		dup2(fdIn, STDIN_FILENO);
 		dup2(fdOut, STDOUT_FILENO);
 		char *argv[3];
 		argv[0] = const_cast<char *>(interpretor.c_str());
-		argv[1] = strdup(cgi_path.c_str());
+		argv[1] = const_cast<char *>(cgi_path.c_str());
 		argv[2] = NULL;
 		execve(argv[0], argv, env);
 		std::cout << COLOR_RED << "Error: Unable to execute CGI script. " << cgi_path << COLOR_RESET << std::endl;
+		delete[] env;
 		exit (1);
 	}
 	else{
@@ -141,16 +139,15 @@ int handleCGI(requestData &request, locationInfo &location, std::string &respons
 	close(fdOut);
 	close(dup_stdin);
 	close(dup_stdout);
-	delete[] env;
 
 	if (!pid)
 		exit(0);
 	return (200);
 }
 
-
 // int handleCGI(requestData &request, locationInfo &location, std::string &response, serverConf &conf){
-// 	std::cout << "Handle CGI" << std::endl;
+// 	int child_pipe[2];
+// 	int parent_pipe[2];
 
 // 	std::string cgi_path = location.root + "/" + request.file_path;
 // 	std::string interpretor = request.interpretor;
@@ -170,51 +167,80 @@ int handleCGI(requestData &request, locationInfo &location, std::string &respons
 // 		}
 // 	}
 
-// 	int stdin = dup(STDIN_FILENO);
-// 	int stdout = dup(STDOUT_FILENO);
-
-// 	FILE *tempIn = std::tmpfile();
-// 	FILE *tempOut = std::tmpfile();
-// 	int fdIn = fileno(tempIn);
-// 	int fdOut = fileno(tempOut);
-
-// 	if (request.method == POST){
-// 		std::fwrite(request.body.c_str(), 1, request.body.length(), tempIn);
+// 	if (pipe(child_pipe) < 0){
+// 		std::cout << COLOR_RED << "Error: Unable to create pipe" << COLOR_RESET << std::endl;
+// 		response = handleError(500, conf);
+// 		return (500);
 // 	}
-// 	// else{
-// 	// 	std::string query = request.query_string;
-// 	// 	std::fwrite(query.c_str(), 1, query.length(), tempIn);
-// 	// }
-// 	std::rewind(tempIn);
+// 	if (pipe(parent_pipe) < 0){
+// 		std::cout << COLOR_RED << "Error: Unable to create pipe" << COLOR_RESET << std::endl;
+// 		response = handleError(500, conf);
+// 		return (500);
+// 	}
 
-// 	char **env = createEnv(request, conf);
-
-// 	pid_t pid = fork();
+// 	int pid = fork();
 // 	if (pid < 0){
 // 		std::cout << COLOR_RED << "Error: Unable to fork" << COLOR_RESET << std::endl;
-// 		fclose(tempIn);
-// 		fclose(tempOut);
 // 		response = handleError(500, conf);
 // 		return (500);
 // 	}
 // 	if (pid == 0){
-// 		int dupIn = dup(fdIn);
-// 		int dupOut = dup(fdOut);
-// 		dup2(dupIn, STDIN_FILENO);
-// 		close(dupIn);
-// 		dup2(dupOut, STDOUT_FILENO);
-// 		close(dupOut);
+// 		char **env = createEnv(request, conf);
+
 // 		char *argv[3];
 // 		argv[0] = const_cast<char *>(interpretor.c_str());
-// 		argv[1] = strdup(cgi_path.c_str());
+// 		argv[1] = const_cast<char *>(cgi_path.c_str());
 // 		argv[2] = NULL;
+
+// 		close(child_pipe[1]);
+// 		close(parent_pipe[0]);
+		
+// 		dup2(child_pipe[0], STDIN_FILENO);
+// 		dup2(parent_pipe[1], STDOUT_FILENO);
+// 		close(parent_pipe[1]);
 // 		execve(argv[0], argv, env);
-// 		close(fdIn);
-// 		close(fdOut);
 // 		std::cout << COLOR_RED << "Error: Unable to execute CGI script. " << cgi_path << COLOR_RESET << std::endl;
-// 		exit(1);
+// 		delete[] env;
+// 		exit (1);
 // 	}
 // 	else{
+// 		close(child_pipe[0]);
+// 		close(parent_pipe[1]);
+
+// 		if (request.method == POST){
+// 			std::cout << "Writing body to pipe" << std::endl;
+// 			write(child_pipe[1], request.body.c_str(), request.body.length());
+// 		}
+// 		close(child_pipe[1]);
+
+// 		std::ofstream outfile("temp", std::ios::out | std::ios::binary);
+// 		if (!outfile.good()){
+// 			std::cout << COLOR_RED << "Error: Unable to open temp file" << COLOR_RESET << std::endl;
+// 			response = handleError(500, conf);
+// 			return (500);
+// 		}
+// 		ssize_t bytes_read;
+// 		char buffer[1024];
+// 		while ((bytes_read = read(parent_pipe[0], buffer, 1024)) > 0){
+// 			memset(buffer, 0, 1024);
+// 			buffer[bytes_read] = '\0';
+// 			outfile.write(buffer, bytes_read);
+// 			response.append(buffer, bytes_read);
+// 		}
+
+// 		std::ifstream infile("temp", std::ios::in | std::ios::binary);
+// 		std::string line;
+// 		std::cout << "print infile" << std::endl;
+//     	while (std::getline(infile, line)) {
+//         std::cout << line << std::endl; 
+//     	}
+
+// 		std::cout << "Response: " << response << std::endl;
+		
+
+// 		close(parent_pipe[0]);
+// 		outfile.close();
+		
 // 		int status;
 // 		waitpid(-1, &status, 0);
 // 		if (WIFEXITED(status) == 0){
@@ -222,32 +248,6 @@ int handleCGI(requestData &request, locationInfo &location, std::string &respons
 // 			response = handleError(500, conf);
 // 			return (500);
 // 		}
-// 		char buffer[1024];
-// 		std::rewind(tempOut);
-// 		int bytes_read;
-// 		while ((bytes_read = std::fread(buffer, 1, 1024, tempOut)) > 0){
-// 			response.append(buffer, bytes_read);
-// 		}
-// 	}
-// 	std::string::size_type pos = response.find("\r\n\r\n");
-// 	if (pos == std::string::npos){
-// 		std::cout << COLOR_RED << "Error: CGI script did not return a valid response. " << cgi_path << COLOR_RESET << std::endl;
-// 		fclose(tempIn);
-// 		fclose(tempOut);
-// 		std::cout << "Response: " << response << std::endl;
-// 		response = handleError(404, conf);
-// 		request.status_code = 200;
-// 		request.is_cgi = 0;
-// 		return (200);
-// 	}
-// 	else{
-// 		std::cout << "CGI success" << std::endl;
-// 		fclose(tempIn);
-// 		fclose(tempOut);
-// 		dup2(stdin, STDIN_FILENO);
-// 		close(stdin);
-// 		dup2(stdout, STDOUT_FILENO);
-// 		close(stdout);
 // 		return (200);
 // 	}
 // }
