@@ -16,7 +16,7 @@
 # include "Server.hpp"
 # include "serverUtils.hpp"
 
-# define ENV_COUNT 16
+# define ENV_COUNT 17
 
 struct requestData;
 struct locationInfo;

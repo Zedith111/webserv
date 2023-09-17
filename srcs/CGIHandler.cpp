@@ -27,7 +27,7 @@ char **createEnv(requestData &request, serverConf &conf){
 
 	addEnv("GATEWAY_INTERFACE=CGI/1.1", env);
 	addEnv("SERVER_NAME=" + conf.server_name, env);
-	addEnv("SERVER_SOFTWARE=Webserv/1.0", env);
+	addEnv("SERVER_SOFTWARE=webserv", env);
 	addEnv("SERVER_PROTOCOL=HTTP/1.1", env);
 	addEnv("SERVER_PORT=" + request.port, env);
 	if (request.method == GET){
@@ -38,7 +38,7 @@ char **createEnv(requestData &request, serverConf &conf){
 		addEnv("REQUEST_METHOD=POST", env);
 		addEnv("QUERY_STRING=", env);
 	}
-	std::string whole_path = request.route + "/" + request.file_path; 
+	std::string whole_path = request.route + "/" + request.file_path;
 	std::cout << "Whole path: " << whole_path << std::endl;
 	addEnv("PATH_INFO=" + whole_path, env);
 	addEnv("HTTP_X_SECRET_HEADER_FOR_TEST=1", env);
@@ -47,8 +47,8 @@ char **createEnv(requestData &request, serverConf &conf){
 	addEnv("REMOTE_ADDR=127.0.0.1", env);
 	addEnv("REDIRECT_STATUS=200", env);
 	addEnv("CONTENT_TYPE=*/*", env);
-	addEnv("CONTENT_LENGTH=" + std::to_string(request.contentLength), env);
-
+	addEnv("CONTENT_LENGTH=" + intToString((int)request.contentLength), env);
+	addEnv("REQUEST_URI=" + whole_path, env);
 	return (env);
 }
 
@@ -63,12 +63,9 @@ int handleCGI(requestData &request, locationInfo &location, std::string &respons
 	}
 
 	if (access(interpretor.c_str(), R_OK | X_OK) != 0){
-		interpretor = "." + interpretor;
-		if (access(interpretor.c_str(), R_OK | X_OK) != 0){
-			std::cout << COLOR_RED << "Error: Unable to access CGI interpretor. " << interpretor << COLOR_RESET << std::endl;
-			response = handleError(500, conf);
-			return (500);
-		}
+		std::cout << COLOR_RED << "Error: Unable to access CGI interpretor. " << interpretor << COLOR_RESET << std::endl;
+		response = handleError(500, conf);
+		return (500);
 	}
 
 	// if (DEBUG){
@@ -85,9 +82,10 @@ int handleCGI(requestData &request, locationInfo &location, std::string &respons
 	int fdIn = fileno(tempIn);
 	int fdOut = fileno(tempOut);
 
-	if (request.method == POST){
+	// if (request.method == POST){
 		std::fwrite(request.body.c_str(), 1, request.body.length(), tempIn);
-	}
+	// }
+	std::cout << "Body: " << request.body << std::endl;
 	std::rewind(tempIn);
 
 	pid_t pid = fork();
@@ -130,7 +128,7 @@ int handleCGI(requestData &request, locationInfo &location, std::string &respons
 			response.append(buffer, bytes_read);
 		}
 	}
-	// std::cout << "Response: " << response << std::endl;
+	std::cout << "Response: " << response << std::endl;
 	dup2(dup_stdin, STDIN_FILENO);
 	dup2(dup_stdout, STDOUT_FILENO);
 	fclose(tempIn);

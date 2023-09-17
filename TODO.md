@@ -29,14 +29,13 @@ Check leak
     Duplicate upload of same file
 
 # To Do
-    if same root,delte
-    check can get ./
+    CGI add HTTp 1.1
+    When nested autoindex, the file path does not add up
+    When main dir has autoindex, sub dir should also have autoindex
+
     Finish cgi
     Finish cgi env
     Correctly unchuncked(process chunk)
-    When nested autoindex, the file path does not add up
-    When main dir has autoindex, sub dir should also have autoindex
-    .bla/ should be found 
 
 
   

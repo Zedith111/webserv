@@ -92,11 +92,11 @@ int	ConfigParser::parseToken(){
 }
 
 int	ConfigParser::parseServer(size_t &current, int indent_level, serverConf *current_conf){
-	std::string	keys[] = {"listen", "server_name", "root", "error_pages", "Add_handler"};
+	std::string	keys[] = {"listen", "server_name", "root", "error_pages", "Add_handler", "index"};
 	const int			key_size = sizeof(keys) / sizeof(keys[0]);
 	typedef int (ConfigParser::*func)(size_t &, serverConf *);
 	func	key_funcs[key_size] = {&ConfigParser::parseListen, &ConfigParser::parseServerName, &ConfigParser::parseRoot,
-				&ConfigParser::parseErrorPages, &ConfigParser::parseCGIHandler};
+				&ConfigParser::parseErrorPages, &ConfigParser::parseCGIHandler, &ConfigParser::parseServerIndex};
 
 	//Check present of server block
 	if (current_conf == NULL){
@@ -200,7 +200,8 @@ int	ConfigParser::parseLocation(size_t &current, int indent_level, serverConf *c
 /**
  * @brief Check and fill out necessary information if the config file does not provide.
  * This includes:
- * 		- Necessary information, including host, port,root, server_name
+ * 		- Necessary information, including host, port, server_name
+ * 		- If root directory is missing, use current directory as root directory
  * 		- Check the error pages, if one is missing, fill out with default error pages
  * 		- Attach server root to location root
  * 		- Check if has duplicate server block. Server block is considered duplicate if it has same host and port, the 
@@ -212,12 +213,18 @@ int	ConfigParser::parseLocation(size_t &current, int indent_level, serverConf *c
 int ConfigParser::validateConfig(){
 	for (size_t i = 0; i < this->server_confs.size(); i++){
 		serverConf *current_conf = this->server_confs[i];
-		if (current_conf->host.empty() || current_conf->port_number.empty() || current_conf->root.empty() || current_conf->server_name.empty()){
+		if (current_conf->host.empty() || current_conf->port_number.empty() || current_conf->server_name.empty()){
 			std::cout << COLOR_RED << "Error. Missing necessary information in server block" << COLOR_RESET << std::endl;
 			return (0);
 		}
+		if (current_conf->root.empty()){
+			current_conf->root = ".";
+		}
 		if (validateLocationRoot(current_conf) == 0)
 			return (0);
+		if (!current_conf->default_index.empty()){
+			current_conf->default_index = current_conf->root + "/" + current_conf->default_index;
+		}
 		addErrorpages(current_conf);
 	}
 	validateServer();
@@ -277,18 +284,6 @@ int ConfigParser::parseRoot(size_t &current, serverConf *current_conf){
 	return (checkEnding(current));
 }
 
-// int ConfigParser::parseCGIBin(size_t &current, serverConf *current_conf){
-// 	current += 1;
-// 	std::string path = this->tokens[current];
-// 	if (checkIsDirectory(path) != 1){
-// 		std::cout << COLOR_RED << "Error. Invalid cgi bin path: " << path << COLOR_RESET << std::endl;
-// 		return (0);
-// 	}
-// 	current_conf->cgi_bin = path;
-// 	current += 1;
-// 	return (checkEnding(current));
-// }
-
 int ConfigParser::parseErrorPages(size_t &current, serverConf *current_conf){
 	current += 1;
 	std::istringstream iss(this->tokens[current]);
@@ -321,6 +316,16 @@ int ConfigParser::parseCGIHandler(size_t &current, serverConf *current_conf){
 		current_conf->cgi_map.insert(std::pair<std::string, std::string>(this->tokens[current], cgi_path));
 		current += 1;
 	}
+	return (checkEnding(current));
+}
+
+/**
+ * @brief Parse the default index of the server. The index must be located in the root directory
+ */
+int ConfigParser::parseServerIndex(size_t &current, serverConf *current_conf){
+	current += 1;
+	current_conf->default_index = this->tokens[current];
+	current += 1;
 	return (checkEnding(current));
 }
 
@@ -438,7 +443,6 @@ void ConfigParser::addErrorpages(serverConf *current_conf){
 
 /**
  * @brief Check if the root and cgi path is a directory
- * 
  */
 int ConfigParser::validateLocationRoot(serverConf *current_conf){
 	std::map<std::string, locationInfo*>::iterator it;

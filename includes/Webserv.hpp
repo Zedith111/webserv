@@ -81,6 +81,7 @@ struct serverConf{
 	std::vector<std::string>	port_number;
 	std::string server_name;
 	std::string root;
+	std::string default_index;
 	std::map<int, std::string>	error_pages;
 	std::multimap<std::string, std::string> cgi_map;
 	std::map<std::string, locationInfo *> locations;

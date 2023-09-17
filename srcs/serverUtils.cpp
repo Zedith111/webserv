@@ -43,10 +43,12 @@ int checkCGIRequest(std::string &path, serverConf &server, requestData &request)
 	}
 	std::string::size_type query_string_pos = path.find_last_of("?");
 	std::string extension = path.substr(extension_pos, query_string_pos - extension_pos);
+	if (extension.find("/") != std::string::npos)
+		extension = extension.substr(0, extension.find("/"));
 
 	std::multimap<std::string, std::string>::iterator it = server.cgi_map.find(extension);
 	if (it == server.cgi_map.end()){
-		std::cout << "not in map" << std::endl;
+		std::cout << COLOR_RED << "Error: cgi extension not in map" << COLOR_RESET << std::endl;
 		return (0);
 	}
 	request.interpretor = it->second;
