@@ -52,7 +52,7 @@ int checkCGIRequest(std::string &path, serverConf &server, requestData &request)
 		return (0);
 	}
 	request.interpretor = it->second;
-	request.file_path = path.substr(1, extension_pos - 1) + extension;
+	request.file_path = path.substr(0, extension_pos) + extension;
 	return (1);
 }
 
@@ -124,18 +124,21 @@ std::string handleError(int error_code, serverConf &conf){
 	return (buffer.str());
 }
 
-int generateAutoindex(serverConf &conf,std::string &route, std::string &file_path, std::string &response){
-	if (checkIsDirectory(file_path) <= 0){
+
+int generateAutoindex(serverConf &conf, requestData &request, std::string &directory_path, std::string &response){
+	std::string whole_route = request.route + request.file_path;
+	if (checkIsDirectory(directory_path) <= 0){
+		std::cout << COLOR_RED << "Error. Autoindex called for non-directory" << COLOR_RESET << std::endl;
 		response = handleError(403, conf);
 		return (403);
 	}
-	response += "<html>\n<head>\n<title>Index of " + route + "</title>\n</head>\n<body>\n<h1>Index of " + route + "</h1>\n";
+	response += "<html>\n<head>\n<title>Index of " + whole_route + "</title>\n</head>\n<body>\n<h1>Index of " + whole_route + "</h1>\n";
 	response += "<table>\n<tr>\n<th>Name</th>\n<th>Last Modified</th>\n<th>Size</th>\n</tr>\n";
 	try{
-		response += printDirectory(route, file_path);
+		response += printDirectory(whole_route, directory_path);
 	}
 	catch(const std::exception &e){
-		std::cout << COLOR_RED << "Error. Unable to open directory " << file_path << COLOR_RESET << std::endl;
+		std::cout << COLOR_RED << "Error. Unable to open directory " << directory_path << COLOR_RESET << std::endl;
 		response = handleError(500, conf);
 		return (500);
 	}
@@ -218,8 +221,11 @@ int handleNormalUpload(requestData &request, locationInfo &location, int overwri
 }
 
 std::string processChunk(std::string &request){
+	std::cout << "Processing chunk" << std::endl;
+	std::cout << "Whole request: " << request << std::endl;
 	std::string header = request.substr(0, request.find("\r\n\r\n"));
 	std::string body = request.substr(request.find("\r\n\r\n") + 4, request.length() - 1);
+	
 	std::string subchunk = body.substr(0,100);
 	std::string res = "";
 	int chunk_size = strtol(subchunk.c_str(), NULL, 16);
@@ -232,6 +238,6 @@ std::string processChunk(std::string &request){
 		subchunk = body.substr(i, 100);
 		chunk_size = strtol(subchunk.c_str(), NULL, 16);
 	}
-
+	std::cout << "Res: " << res << std::endl;
 	return (res + "\r\n\r\n");
 }

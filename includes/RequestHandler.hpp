@@ -6,7 +6,7 @@
 /*   By: zah <zah@student.42kl.edu.my>              +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2023/09/13 13:09:21 by zah               #+#    #+#             */
-/*   Updated: 2023/09/13 17:21:38 by zah              ###   ########.fr       */
+/*   Updated: 2023/09/29 13:49:50 by zah              ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -15,6 +15,7 @@
 
 # include "Server.hpp"
 # include "serverUtils.hpp"
+# include <exception>
 
 # define ENV_COUNT 17
 
@@ -28,5 +29,22 @@ int handleHead(requestData &request, locationInfo &location ,std::string &respon
 int handleDelete(requestData &request, locationInfo &location ,std::string &response, serverConf &conf);
 
 int handleCGI(requestData &request, locationInfo &location, std::string &response, serverConf &conf);
+
+class requestException: public std::exception{
+	public:
+		requestException(std::string msg){
+			this->msg = msg;
+		}
+
+		~requestException() throw(){
+
+		}
+		
+		const char* what() const throw(){
+			return (this->msg.c_str());
+		}
+	private:
+		std::string msg;
+};
 
 #endif
