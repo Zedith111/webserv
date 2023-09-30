@@ -31,6 +31,7 @@ Check leak
     Duplicate upload of same file
 
 # To Do
+    Use sigpipe
     Check leak
     Correctly unchuncked(process chunk)
 
@@ -84,28 +85,7 @@ server_addr.sin_family = AF_INET;
 # Information
 host cat etc/hosts
 
-# Future Improvement
-Add ipv6 support
-Multiple worker thread
-Handle multiple request type
 
-
-# CGI env
-GATEWAY_INTERFACE=CGI/1.1
-SERVER_NAME=Get from config
-SERVER_SOFTWARE=webserv
-SERVER_PROTOCOL=HTTP/1.1
-SERVER_PORT= get from requet
-REQUEST_METHOD=pass down
-PATH_INFO=path to cgi handler
-PATH_TRANSLATED=actual path to cgi handler
-SCRIPT_NAME=path to cgi handler
-DOCUMENT_ROOT= get from config
-QUERY_STRING=empty
-REMOTE_HOST= get from request(HOST)
-REMOTE_ADDR= get from request
-CONTENT_TYPE= */*
-CONTENT_LENGTH= get from request
 
 # CGI script
 print.cpp -> print env -> compile as print.cgi

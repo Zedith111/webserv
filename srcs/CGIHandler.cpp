@@ -20,7 +20,7 @@ void addEnv(std::string value, char **env){
 	env[i] = strdup(value.c_str());
 }
 
-char **createEnv(requestData &request, serverConf &conf){
+char **createEnv(requestData &request, serverConf &conf, std::string &secret_header){
 	char **env = new char*[ENV_COUNT];
 
 	std::memset(env, 0, sizeof(char *) * ENV_COUNT);
@@ -40,7 +40,7 @@ char **createEnv(requestData &request, serverConf &conf){
 	}
 	std::string whole_path = request.route + request.file_path;
 	addEnv("PATH_INFO=" + whole_path, env);
-	addEnv("HTTP_X_SECRET_HEADER_FOR_TEST=", env);
+	addEnv("HTTP_X_SECRET_HEADER_FOR_TEST=" + secret_header, env);
 	addEnv("SCRIPT_NAME=" + request.interpretor, env);
 	addEnv("DOCUMENT_ROOT=" + request.interpretor, env);
 	addEnv("REMOTE_ADDR=127.0.0.1", env);
@@ -48,15 +48,6 @@ char **createEnv(requestData &request, serverConf &conf){
 	addEnv("CONTENT_TYPE=*/*", env);
 	addEnv("CONTENT_LENGTH=" + intToString((int)request.contentLength), env);
 	addEnv("REQUEST_URI=" + whole_path, env);
-	// char **env = new char*[8];
-	// std::memset(env, 0, sizeof(char *) * 8);
-	// addEnv("QUERY_STRING=", env);
-	// addEnv("REQUEST_METHOD=POST", env);
-	// addEnv("SERVER_NAME=localhost", env);
-	// addEnv("SERVER_PORT=8080", env);
-	// addEnv("SERVER_PROTOCOL=HTTP/1.1", env);
-	// addEnv("HTTP_X_SECRET_HEADER_FOR_TEST=1", env);
-	// addEnv("PATH_INFO=/cgi-bin/php-cgi", env);")	
 	return (env);
 }
 
@@ -68,15 +59,25 @@ int handleCGI(requestData &request, locationInfo &location, std::string &respons
 	std::string interpretor = request.interpretor;
 
 	if (access(cgi_path.c_str(), R_OK | X_OK) != 0){
-		std::cout << COLOR_RED << "Error: Unable to access CGI script. " << cgi_path << COLOR_RESET << std::endl;
-		response = handleError(500, conf);
-		return (500);
+		if (TEST == 0){
+			std::cout << COLOR_RED << "Error: Unable to access CGI script. " << cgi_path << COLOR_RESET << std::endl;
+			response = handleError(500, conf);
+			return (500);
+		}
 	}
 
 	if (access(interpretor.c_str(), R_OK | X_OK) != 0){
 		std::cout << COLOR_RED << "Error: Unable to access CGI interpretor. " << interpretor << COLOR_RESET << std::endl;
 		response = handleError(500, conf);
 		return (500);
+	}
+	std::string secret_header = "";
+	std::string::size_type secret_header_pos = request.header.find("X-Secret-Header-For-Test: ");
+	if (secret_header_pos != std::string::npos){
+		std::cout << COLOR_YELLOW << "Found X-Secret-Header-For-Test" << COLOR_RESET << std::endl;
+		size_t start_pos = secret_header_pos + 26;
+		size_t end_pos = request.header.find("\r\n", start_pos);
+		secret_header = request.header.substr(start_pos, end_pos - start_pos);
 	}
 
 	if (DEBUG){
@@ -106,7 +107,7 @@ int handleCGI(requestData &request, locationInfo &location, std::string &respons
 		return (500);
 	}
 	if (pid == 0){
-		char **env = createEnv(request, conf);
+		char **env = createEnv(request, conf, secret_header);
 		dup2(fdIn, STDIN_FILENO);
 		dup2(fdOut, STDOUT_FILENO);
 		char *argv[3];

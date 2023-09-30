@@ -235,7 +235,7 @@ int	Server::handleConnection(int socket_fd){
 		return (-1);
 	}
 	while (bytes_read > 0){
-		std::cout << COLOR_GREEN << "Receiving " << bytes_read << COLOR_RESET << "\r\n";
+		// std::cout << COLOR_GREEN << "Receiving " << bytes_read << COLOR_RESET << "\r\n";
 		// std::cout.flush();
 		this->client_requests[socket_fd].whole_request.append(buffer, bytes_read);
 		memset(buffer, 0, BUFFER_SIZE);
@@ -333,16 +333,6 @@ void		Server::handleRequest(int socket_fd){
 			this->servers[server_fd]);
 		return ;
 	}
-
-	//Check for the content-length exceed the limit
-	if (this->servers[server_fd].locations[route]->max_body_size_set == 1){
-		if (this->client_requests[socket_fd].contentLength > this->servers[server_fd].locations[route]->max_body_size){
-			std::cout << COLOR_RED << "Error. Content-Length exceed limit" << COLOR_RESET << std::endl;
-			this->client_responses[socket_fd] = handleError(413, this->servers[this->client_requests[socket_fd].server_fd]);
-			this->client_requests[socket_fd].status_code = 413;
-			return ;
-		}
-	}
 	
 	//Check if Method can be handle
 	METHOD request_method = getMethod(method, this->servers[server_fd].locations[route]->limit_except);
@@ -402,30 +392,16 @@ void	Server::sendResponse(int socket_fd){
 	while ((size_t)total_sent < res.length())
 	{
 		int bytes_sent = send(socket_fd, res.c_str() + total_sent, res.length() - total_sent, 0);
-		if (bytes_sent <= 0)
-			std::cout << COLOR_RED << "Error. Send failed at " << socket_fd << strerror(errno) << COLOR_RESET << std::endl;
+		if (bytes_sent < 0)
+			std::cout << COLOR_YELLOW << "Incomplete send" << COLOR_RESET << std::endl;
 		else{
 			total_sent += bytes_sent;
-			std::cout << COLOR_MAGENTA << "Sent " << bytes_sent << " bytes to socket: " << socket_fd << COLOR_RESET << std::endl;
 		}
 	}
-	
-	// long total_sent = this->bytes_sent[socket_fd];
-	// std::cout << "Length: " << res.length() << std::endl;
-	// int byteSend = send(socket_fd, res.c_str() + total_sent, res.length() - total_sent, 0);
-	// if (byteSend <= 0)
-	// 	std::cout << COLOR_RED << "Error. Send failed at " << socket_fd << strerror(errno) << COLOR_RESET << std::endl;
-	// else{
-	// 	this->bytes_sent[socket_fd] += byteSend;
-	// 	if ((size_t)this->bytes_sent[socket_fd] != res.length()){
-	// 		std::cout << "Sent incomplete" << std::endl;
-	// 		std::cout << "Sent " << this->bytes_sent[socket_fd] << " bytes" << std::endl;
-	// 		return ;
-	// 	}
-	// }
+	std::cout << COLOR_MAGENTA << "Sent " << total_sent << " bytes to socket " << socket_fd << COLOR_RESET << std::endl;
+	std::cout.flush();
 	this->client_requests.erase(socket_fd);
 	this->client_responses.erase(socket_fd);
-	std::cout << COLOR_MAGENTA << "Sent " << total_sent << " bytes to socket: " << socket_fd << COLOR_RESET << std::endl;
 	close(socket_fd);
 }
 

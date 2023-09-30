@@ -61,7 +61,7 @@ int handleGet(requestData &request, locationInfo &location, std::string &respons
 			}
 			else {
 				//If not tester, check the route have present of autoindex
-				std::cout << "Subdirectory autoidnex" << std::endl;
+				std::cout << "Subdirectory autoindex" << std::endl;
 				if (location.autoindex == true)
 					return (generateAutoindex(conf, request, whole_path, response));
 				else{
