@@ -13,6 +13,10 @@ ifeq ($(DB), 1)
 	# CFLAGS += -pg
 endif
 
+ifeq ($(TS), 1)
+	CFLAGS += -D TEST=1
+endif
+
 all	:	
 		mkdir -p $(OBJ_DIR)
 		make $(NAME)
@@ -26,6 +30,10 @@ $(OBJ_DIR)/%.o: $(SRC_DIR)/%.cpp
 debug	:	fclean
 			@echo " DEBUG MODE "
 			@$(MAKE) DB=1
+
+test 	:	fclean
+			@echo " TEST MODE "
+			@$(MAKE) TS=1
 
 clean	:
 			$(RM) -r $(OBJ_DIR)

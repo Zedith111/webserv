@@ -34,7 +34,6 @@ Server::Server(){
 }
 
 Server::~Server(){
-	this->database.close();
 }
 
 /**
@@ -48,13 +47,6 @@ int	Server::init(std::vector<serverConf *> confs){
 
 	if (DEBUG)
 		std::cout << "\tInitializing server" << std::endl;
-	
-	//Open or create database used to store post data
-	this->database.open("database.txt", std::ios::out);
-	if (!this->database.is_open()){
-		std::cerr << COLOR_RED << "Error. Unable to open database" << COLOR_RESET << std::endl;
-		return (0);
-	}
 
 	//Get Address info
 	memset(&hints, 0, sizeof(hints));
@@ -268,6 +260,7 @@ void		Server::handleRequest(int socket_fd){
 	this->client_requests[socket_fd].header = header;
 	this->client_requests[socket_fd].body = body;
 	this->client_requests[socket_fd].contentLength = contentLength;
+	this->bytes_sent[socket_fd] = 0;
 
 	int pos = header.find(' ');
 	std::string method = header.substr(0, pos);
@@ -301,8 +294,7 @@ void		Server::handleRequest(int socket_fd){
 	}
 
 	if (header.find("Transfer-Encoding: chunked") != std::string::npos){
-		this->client_requests[socket_fd].body = processChunk(this->client_requests[socket_fd].whole_request);
-		// std::cout << "After chunked Body: " << this->client_requests[socket_fd].body	<< std::endl;
+		this->client_requests[socket_fd].body = processChunk(this->client_requests[socket_fd].body);
 	}
 
 	//Check if the path is valide. Will perform two check
@@ -406,12 +398,34 @@ void	Server::sendResponse(int socket_fd){
 		}
 	}
 	res += this->client_responses[socket_fd];
-	int byteSend = send(socket_fd, res.c_str(), res.length(), 0);
-	if (byteSend < 0)
-		std::cout << COLOR_RED << "Error. Send failed at " << socket_fd << strerror(errno) << COLOR_RESET << std::endl;
+	long total_sent = 0;
+	while ((size_t)total_sent < res.length())
+	{
+		int bytes_sent = send(socket_fd, res.c_str() + total_sent, res.length() - total_sent, 0);
+		if (bytes_sent <= 0)
+			std::cout << COLOR_RED << "Error. Send failed at " << socket_fd << strerror(errno) << COLOR_RESET << std::endl;
+		else{
+			total_sent += bytes_sent;
+			std::cout << COLOR_MAGENTA << "Sent " << bytes_sent << " bytes to socket: " << socket_fd << COLOR_RESET << std::endl;
+		}
+	}
+	
+	// long total_sent = this->bytes_sent[socket_fd];
+	// std::cout << "Length: " << res.length() << std::endl;
+	// int byteSend = send(socket_fd, res.c_str() + total_sent, res.length() - total_sent, 0);
+	// if (byteSend <= 0)
+	// 	std::cout << COLOR_RED << "Error. Send failed at " << socket_fd << strerror(errno) << COLOR_RESET << std::endl;
+	// else{
+	// 	this->bytes_sent[socket_fd] += byteSend;
+	// 	if ((size_t)this->bytes_sent[socket_fd] != res.length()){
+	// 		std::cout << "Sent incomplete" << std::endl;
+	// 		std::cout << "Sent " << this->bytes_sent[socket_fd] << " bytes" << std::endl;
+	// 		return ;
+	// 	}
+	// }
 	this->client_requests.erase(socket_fd);
 	this->client_responses.erase(socket_fd);
-	std::cout << COLOR_MAGENTA << "Sent " << byteSend << " bytes to socket: " << socket_fd << COLOR_RESET << std::endl;
+	std::cout << COLOR_MAGENTA << "Sent " << total_sent << " bytes to socket: " << socket_fd << COLOR_RESET << std::endl;
 	close(socket_fd);
 }
 
@@ -426,7 +440,7 @@ int	Server::checkReceive(std::string &msg){
 		return (0);
 	}
 	if (msg.find("Transfer-Encoding: chunked") != std::string::npos){
-		if (msg.find("0\r\n\r\n") == std::string::npos)
+		if (msg.find("\r\n0\r\n\r\n") == std::string::npos)
 			return (0);
 		else
 			return (1);
@@ -475,92 +489,6 @@ int Server::checkHost(std::string &header, std::string &server_name){
 	return (0);
 }
 
-//Find extension
-//Find intepretor
-//differntiate between get and post
-//set up env
-// std::string Server::handleCGI(int &client_fd, locationInfo *location){
-// 	std::cout << "HANDLE CGI" << std::endl;
-
-// 	std::string cgi_path = location->root + "/" + this->client_requests[client_fd].file_path;
-// 	std::string interpretor = this->client_requests[client_fd].interpretor;
-	
-// 	std::cout << "Interpretor: " << interpretor << std::endl;
-// 	std::cout << "CGI Path: " << cgi_path << std::endl;
-
-// 	if (access(cgi_path.c_str(), R_OK| X_OK) != 0){
-// 		std::cout << COLOR_RED << "Error: Unable to access cgi script: " << cgi_path << COLOR_RESET << std::endl;
-// 		this->client_requests[client_fd].status_code = 500;
-// 		return (handleError(500, this->servers[this->client_requests[client_fd].server_fd]));
-// 	}
-
-// 	if (access(interpretor.c_str(), R_OK| X_OK) != 0){
-// 		std::cout << COLOR_RED << "Error: Unable to access interpretor: " << interpretor << COLOR_RESET << std::endl;
-// 		this->client_requests[client_fd].status_code = 500;
-// 		return (handleError(500, this->servers[this->client_requests[client_fd].server_fd]));
-// 	}
-
-// 	int stdin = dup(STDIN_FILENO);
-// 	int stdout = dup(STDOUT_FILENO);
-
-// 	//tempIn is used to store the duplicate script, tempOut is used to store the output
-// 	FILE *tempIn = std::tmpfile();
-// 	FILE *tempOut = std::tmpfile();
-// 	int fdIn = fileno(tempIn);
-// 	int fdOut = fileno(tempOut);
-// 	std::string res;
-	
-// 	//Write the script to tempIn
-// 	FILE *script = fopen(cgi_path.c_str(), "r");
-// 	if (script == NULL){
-// 		std::cout << COLOR_RED << "Error: Unable to open cgi script: " << cgi_path << COLOR_RESET << std::endl;
-// 		this->client_requests[client_fd].status_code = 500;
-// 		return (handleError(500, this->servers[this->client_requests[client_fd].server_fd]));
-// 	}
-
-// 	char buffer[1024];
-// 	int bytes_read;
-// 	while ((bytes_read = std::fread(buffer, 1, 1024, script)) > 0){
-// 		std::fwrite(buffer, 1, bytes_read, tempIn);
-// 	}
-// 	fclose(script);
-// 	std::rewind(tempIn);
-
-// 	pid_t child = fork();
-// 	if (child < 0){
-// 		std::cout << COLOR_RED << "Error: Unable to fork" << COLOR_RESET << std::endl;
-// 		fclose(tempIn);
-// 		fclose(tempOut);
-// 		this->client_requests[client_fd].status_code = 500;
-// 		return (handleError(500, this->servers[this->client_requests[client_fd].server_fd]));
-// 	}
-// 	if (child == 0){
-// 		dup2(fdIn, STDIN_FILENO);
-// 		dup2(fdOut, STDOUT_FILENO);
-// 		char *argv[3];
-// 		argv[0] = const_cast<char *>(this->client_requests[client_fd].interpretor.c_str());
-// 		argv[1] = strdup(this->client_requests[client_fd].file_path.c_str());
-// 		argv[2] = NULL;
-
-// 		execve(argv[0], argv, NULL);
-// 	}
-// 	else{
-// 		int status;
-// 		waitpid(child, &status, 0);
-// 		char buffer[1024];
-// 		std::rewind(tempOut);
-// 		while ((bytes_read = std::fread(buffer, 1, 1024, tempOut)) > 0){
-// 			res.append(buffer, bytes_read);
-// 		}
-// 	}
-// 	dup2(stdin, STDIN_FILENO);
-// 	dup2(stdout, STDOUT_FILENO);
-// 	fclose(tempIn);
-// 	fclose(tempOut);
-
-// 	return (res);
-// }
-
 /**
  * @brief Called when no exact match found in route. Will check for prefix match and return the file path. 
  * Also modify the input argument to remove the file name from the path.
@@ -577,16 +505,12 @@ std::string Server::checkDirectoryRoute(int server_fd, std::string &route){
 		}
 	}
 	route = route.substr(0, route.length() - file_path.length());
-	if (file_path[0] != '/'){
-		file_path = "/" + file_path;
-	}
 	return (file_path);
 }
 
 std::string Server::handlePostText(int &client_fd){
 	std::string content = this->client_requests[client_fd].body;
 	this->database << content << std::endl;
-	this->database.flush();
 	this->client_requests[client_fd].status_code = 201;
 	return ("");
 }

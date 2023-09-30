@@ -1,4 +1,4 @@
-valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes  --verbose     
+`valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes  --verbose     
      --log-file=valgrind-out.txt          ./webserv config/test.conf
 
 To add new error page
@@ -24,27 +24,15 @@ Check leak
         nesting directory with autoindex
         failed
     redirection
+    default index
+    Precendence->have both
 
 ## Post
     Duplicate upload of same file
 
 # To Do
-    CGI add HTTp 1.1
-    When nested autoindex, the file path does not add up
-    When main dir has autoindex, sub dir should also have autoindex
-
-    Finish cgi
-    Finish cgi env
+    Check leak
     Correctly unchuncked(process chunk)
-
-
-  
-
-    Check receive
-    Check send
-    Fix cgi interpretor
-    fix when error no comeout
-    Do env
 
 
 

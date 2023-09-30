@@ -220,24 +220,22 @@ int handleNormalUpload(requestData &request, locationInfo &location, int overwri
 	return (ret * mult);
 }
 
-std::string processChunk(std::string &request){
-	std::cout << "Processing chunk" << std::endl;
-	std::cout << "Whole request: " << request << std::endl;
-	std::string header = request.substr(0, request.find("\r\n\r\n"));
-	std::string body = request.substr(request.find("\r\n\r\n") + 4, request.length() - 1);
-	
-	std::string subchunk = body.substr(0,100);
-	std::string res = "";
-	int chunk_size = strtol(subchunk.c_str(), NULL, 16);
-	size_t i = 0;
+std::string processChunk(std::string &body){
+	std::stringstream res;
+	std::istringstream iss(body);
+	std::string line;
 
-	while (chunk_size){
-		i = body.find("\r\n", i) + 2;
-		res += body.substr(i, chunk_size);
-		i += chunk_size + 2;
-		subchunk = body.substr(i, 100);
-		chunk_size = strtol(subchunk.c_str(), NULL, 16);
+	while (std::getline(iss, line))
+	{
+		size_t chunkSize;
+		std::stringstream(line) >> std::hex >> chunkSize;
+		if (chunkSize == 0)
+			break ;
+		
+		std::vector<char> chunkData(chunkSize);
+		iss.read(chunkData.data(), chunkSize);
+		res.write(chunkData.data(), chunkSize);
+		iss.ignore(2);
 	}
-	std::cout << "Res: " << res << std::endl;
-	return (res + "\r\n\r\n");
+	return (res.str());
 }

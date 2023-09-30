@@ -92,10 +92,15 @@ std::string 	printDirectory(std::string &route, std::string &file_path){
 			continue ;
 		std::string whole_path = file_path + "/" + file_name;
 		std::string whole_route = route + "/" + file_name;
+
+		// std::cout << "Route: " << route << std::endl;
+
+		// std::cout << "Whole path: " << whole_path << std::endl;
+		// std::cout << "Whole route: " << whole_route << std::endl;
+
 		res += "<tr>\n";
 		res += "<td><a href=\"" + whole_route + "\">";
 		res += file_name;
-		std::cout << "File name: " << file_name << std::endl;
 		res += "</a>\n</td>";
 		struct stat file_stat;
 		if (stat(whole_path.c_str(), &file_stat) != 0){

@@ -24,8 +24,8 @@
 # include <cstdio>
 
 
-// # define BUFFER_SIZE 10000
-# define BUFFER_SIZE 1024
+# define BUFFER_SIZE 1000000
+// # define BUFFER_SIZE 1024
 
 
 /**
@@ -77,6 +77,7 @@ class Server{
 		std::map<int, requestData>	client_requests;
 		std::map<int, std::string>	client_responses;
 		std::map<int, std::string>	reason_phrases;
+		std::map<int, long> 		bytes_sent;
 		
 		std::ofstream				database;
 		

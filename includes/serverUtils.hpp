@@ -35,12 +35,12 @@ int 		storeFile(std::string &file_path, std::string &data, int overwrite);
 int			checkFileExist(std::string &file_path);
 
 std::string handleError(int error_code, serverConf &conf);
-int generateAutoindex(serverConf &conf,std::string &route, std::string &file_path, std::string &response);
+int generateAutoindex(serverConf &conf, requestData &request, std::string &directory_path, std::string &response);
 
 int handleNormalUpload(requestData &request, locationInfo &location, int overwrite);
 int handleBoundaryUpload(requestData &request, locationInfo &location, int overwrite);
 
-std::string processChunk(std::string &request);
+std::string processChunk(std::string &body);
 
 
 

@@ -91,6 +91,10 @@ struct serverConf{
 #  define DEBUG 0
 # endif
 
+# ifndef TEST
+#  define TEST 0
+# endif
+
 
 
 #endif
