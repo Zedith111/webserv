@@ -15,8 +15,6 @@ when access /dir/nop will return 404 or not
 Post/Put to /some_path, check will save it.
 upload store and path, which will be precednece
 
-# Test
-Check leak
 ## Get
     direct file
     index
@@ -31,9 +29,8 @@ Check leak
     Duplicate upload of same file
 
 # To Do
-    Use sigpipe
     Check leak
-    Correctly unchuncked(process chunk)
+    Use calculated maxfd
 
 
 

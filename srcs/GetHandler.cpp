@@ -106,7 +106,6 @@ int handleGet(requestData &request, locationInfo &location, std::string &respons
 		}
 	}
 	try {
-		std::cout << "Whole path: " << whole_path << std::endl;
 		read_file(whole_path, response);
 	}
 	catch (std::exception &e){

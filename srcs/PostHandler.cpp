@@ -2,7 +2,6 @@
 
 int handlePost(requestData &request, locationInfo &location ,std::string &response, serverConf &conf){
 	if (location.max_body_size_set == 1){
-		std::cout << "body size: " << request.body.size() << std::endl;
 		if (request.body.size() > location.max_body_size){
 			response = handleError(413, conf);
 			return (413);

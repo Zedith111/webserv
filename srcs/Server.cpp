@@ -79,8 +79,14 @@ int	Server::init(std::vector<serverConf *> confs){
 			std::cout << COLOR_GREEN << "Socket " << socket_fd << " created for port " << conf.port_number[i] << COLOR_RESET << std::endl;
 			this->servers[socket_fd] = conf;
 
-			int reuse = 1;
-			if (setsockopt(socket_fd, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse)) < 0){
+			int resuse = 1;
+			if (setsockopt(socket_fd, SOL_SOCKET, SO_REUSEADDR, &resuse, sizeof(resuse)) < 0){
+				std::cerr << COLOR_RED << "Error. Unable to set socket option for port " << conf.port_number[i] << strerror(errno) << std::endl;
+				freeaddrinfo(res);
+				return (0);
+			}
+			int opt = 1;
+			if (setsockopt(socket_fd, SOL_SOCKET, SO_NOSIGPIPE, &opt, sizeof(opt)) < 0){
 				std::cerr << COLOR_RED << "Error. Unable to set socket option for port " << conf.port_number[i] << strerror(errno) << std::endl;
 				freeaddrinfo(res);
 				return (0);
@@ -119,6 +125,8 @@ int	Server::init(std::vector<serverConf *> confs){
 void	Server::run(){
 	fd_set 			read_ready_fd, write_ready_fd;
 	struct timeval	timeout;
+	int receive_total = 0;
+	int current = 0;
 
 	timeout.tv_sec = 1;
 	timeout.tv_usec = 0;
@@ -159,6 +167,8 @@ void	Server::run(){
 				int new_socket = acceptNewConnection(i);
 				if (new_socket < 0)
 					continue ;
+				receive_total ++;
+				current ++;
 				FD_SET(new_socket, &this->read_fd);
 				is_new_socket = 1;
 				break ;
@@ -168,11 +178,12 @@ void	Server::run(){
 				if (handle_ret == -1){
 					FD_CLR(i, &this->read_fd);
 					this->client_requests.erase(i);
+					close(i);
 				}
 				if (handle_ret == 1){
-					handleRequest(i);
 					FD_SET(i, &this->write_fd);
 					FD_CLR(i, &this->read_fd);
+					handleRequest(i);
 				}
 				break ;
 			}
@@ -182,10 +193,13 @@ void	Server::run(){
 			if (!FD_ISSET(i, &write_ready_fd))
 				continue ;
 			sendResponse(i);
+			current --;
 			std::cout << "Closing socket " << i << std::endl;
 			FD_CLR(i, &this->write_fd); 
 			break ;
 		}
+		std::cout << "Processing total: " << receive_total << std::endl;
+		std::cout << "Current processing: " << current << std::endl;
 	}
 }
 
@@ -195,6 +209,7 @@ void	Server::run(){
  */
 int	Server::acceptNewConnection(int socket_fd){
 	int new_socket = accept(socket_fd, NULL, NULL);
+
 	if (new_socket < 0){
 		std::cout << COLOR_RED << "Error: Accept failed " << strerror(errno) << COLOR_RESET << std::endl;
 		close(socket_fd);
@@ -219,7 +234,7 @@ int	Server::handleConnection(int socket_fd){
 	int		bytes_read;
 	char	buffer[BUFFER_SIZE];
 
-	memset(buffer, 0, BUFFER_SIZE);
+	std::memset(buffer, 0, BUFFER_SIZE);
 	bytes_read = recv(socket_fd, buffer, BUFFER_SIZE, 0);
 
 	if (bytes_read == 0){
@@ -235,10 +250,10 @@ int	Server::handleConnection(int socket_fd){
 		return (-1);
 	}
 	while (bytes_read > 0){
-		// std::cout << COLOR_GREEN << "Receiving " << bytes_read << COLOR_RESET << "\r\n";
-		// std::cout.flush();
+		std::cout << COLOR_GREEN << "Receiving " << bytes_read << " bytes" << COLOR_RESET << std::endl;
+		std::cout.flush();
 		this->client_requests[socket_fd].whole_request.append(buffer, bytes_read);
-		memset(buffer, 0, BUFFER_SIZE);
+		std::memset(buffer, 0, BUFFER_SIZE);
 		bytes_read = recv(socket_fd, buffer, BUFFER_SIZE, 0);
 	}
 	return (checkReceive(this->client_requests[socket_fd].whole_request));
@@ -392,14 +407,15 @@ void	Server::sendResponse(int socket_fd){
 	while ((size_t)total_sent < res.length())
 	{
 		int bytes_sent = send(socket_fd, res.c_str() + total_sent, res.length() - total_sent, 0);
-		if (bytes_sent < 0)
+		if (bytes_sent < 0){
 			std::cout << COLOR_YELLOW << "Incomplete send" << COLOR_RESET << std::endl;
+			std::cout.flush();
+		}
 		else{
 			total_sent += bytes_sent;
 		}
 	}
 	std::cout << COLOR_MAGENTA << "Sent " << total_sent << " bytes to socket " << socket_fd << COLOR_RESET << std::endl;
-	std::cout.flush();
 	this->client_requests.erase(socket_fd);
 	this->client_responses.erase(socket_fd);
 	close(socket_fd);
@@ -411,6 +427,8 @@ void	Server::sendResponse(int socket_fd){
  */
 int	Server::checkReceive(std::string &msg){
 	std::string header_end = "\r\n\r\n";
+	if (msg.empty())
+		return (0);
 
 	if (msg.find(header_end) == std::string::npos){
 		return (0);

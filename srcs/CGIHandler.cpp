@@ -6,7 +6,7 @@
 /*   By: zah <zah@student.42kl.edu.my>              +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2023/09/13 13:09:33 by zah               #+#    #+#             */
-/*   Updated: 2023/09/30 16:37:14 by zah              ###   ########.fr       */
+/*   Updated: 2023/10/02 11:18:31 by zah              ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -141,16 +141,12 @@ int handleCGI(requestData &request, locationInfo &location, std::string &respons
 	std::string new_header;
 	if (response.find("\r\n\r\n") != std::string::npos){
 		std::string header = response.substr(0, response.find("\r\n\r\n"));
-		std::cout << "Original header:" << header << std::endl;
 		if (header.find("Status") != std::string::npos){
 			std::cout << COLOR_YELLOW << "CGI return invalid header. Adding default header." << COLOR_RESET << std::endl;	
 			response.erase(0,7);
 			response.insert(0, "HTTP/1.1");
 		}
 	}
-	std::string body = response.substr(response.find("\r\n\r\n") + 4);
-	std::cout << "CGI body size: " << body.size() << std::endl;
-	std::cout << "response size: " << response.size() << std::endl;
 	dup2(dup_stdin, STDIN_FILENO);
 	dup2(dup_stdout, STDOUT_FILENO);
 	fclose(tempIn);

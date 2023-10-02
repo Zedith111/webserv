@@ -24,8 +24,7 @@
 # include <cstdio>
 
 
-# define BUFFER_SIZE 1000000
-// # define BUFFER_SIZE 1024
+# define BUFFER_SIZE 2048
 
 
 /**
