@@ -69,6 +69,7 @@ struct requestData{
 
 class Server{
 	private:
+		int							max_fd;
 		std::vector<serverConf *>	confs;
 		std::map<int, serverConf>	servers;
 		fd_set						read_fd, write_fd;
@@ -81,13 +82,13 @@ class Server{
 		std::ofstream				database;
 		
 		int				acceptNewConnection(int socket_fd);
-		int				handleConnection(int socket_fd);
+		// int				handleConnection(int socket_fd);
+		void			handleConnection(int socket_fd);
 		void			handleRequest(int socket_fd);
-		void				sendResponse(int socket_fd);
+		void			sendResponse(int socket_fd);
 		int				checkReceive(std::string &msg);
 		int				checkHost(std::string &header, std::string &server_name);
 
-		// std::string 	handleCGI(int &client_fd, locationInfo *location);
 		
 		std::string		checkDirectoryRoute(int server_fd, std::string &path);
 		std::string 	handlePostText(int &client_fd);

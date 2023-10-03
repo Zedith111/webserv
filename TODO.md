@@ -35,7 +35,6 @@ upload store and path, which will be precednece
 
 
 # Parser 
-    Rework cgi parser
     When no root and cgi bin specified, use current directory as root
 
 # Handle request

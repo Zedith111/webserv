@@ -85,12 +85,6 @@ int	Server::init(std::vector<serverConf *> confs){
 				freeaddrinfo(res);
 				return (0);
 			}
-			int opt = 1;
-			if (setsockopt(socket_fd, SOL_SOCKET, SO_NOSIGPIPE, &opt, sizeof(opt)) < 0){
-				std::cerr << COLOR_RED << "Error. Unable to set socket option for port " << conf.port_number[i] << strerror(errno) << std::endl;
-				freeaddrinfo(res);
-				return (0);
-			}
 
 			//Bind Socket
 			if (bind(socket_fd, res->ai_addr, res->ai_addrlen) < 0){
@@ -128,21 +122,28 @@ void	Server::run(){
 	int receive_total = 0;
 	int current = 0;
 
-	timeout.tv_sec = 1;
+	timeout.tv_sec = 5;
 	timeout.tv_usec = 0;
 	FD_ZERO(&this->read_fd);
 	FD_ZERO(&this->write_fd);
-	for (std::map<int, serverConf>::iterator it = this->servers.begin(); it != this->servers.end(); it++){
+	std::map<int, serverConf>::iterator it = this->servers.begin();
+	this->max_fd = it->first;
+	std::cout << "initial max fd: " << this->max_fd << std::endl;
+	for (it = this->servers.begin(); it != this->servers.end(); it++){
 		FD_SET(it->first, &this->read_fd);
+		if (it->first > this->max_fd)
+			this->max_fd = it->first;
 	}
+	std::cout << "Current max fd: " << this->max_fd << std::endl;
 	while (1){
 		memcpy(&read_ready_fd, &this->read_fd, sizeof(fd_set));
 		memcpy(&write_ready_fd, &this->write_fd, sizeof(fd_set));
 
-		int select_val = select(FD_SETSIZE, &read_ready_fd, &write_ready_fd, NULL, &timeout);
+		int select_val = select(this->max_fd + 1, &read_ready_fd, &write_ready_fd, NULL, &timeout);
 		if (select_val < 0){
 			std::cout << COLOR_RED << "Error. select failed. " << strerror(errno) << COLOR_RESET << std::endl;
 			std::cout << "Trying to reset" << std::endl;
+			this->max_fd = 0;
 			for (std::map<int, requestData>::iterator it = this->client_requests.begin(); it != this->client_requests.end(); it ++){
 				close(it->first);
 			}
@@ -150,6 +151,8 @@ void	Server::run(){
 			this->client_responses.clear();
 			FD_ZERO(&this->read_fd);
 			for (std::map<int, serverConf>::iterator it = this->servers.begin(); it != this->servers.end(); it++){
+				if (it->first > this->max_fd)
+					this->max_fd = it->first;
 				FD_SET(it->first, &this->read_fd);
 			}
 		}
@@ -158,7 +161,7 @@ void	Server::run(){
 			continue;
 
 		//Reading Request
-		for (int i = 0; i < FD_SETSIZE; i++){
+		for (int i = 0; i < this->max_fd + 1; i++){
 			if (!FD_ISSET(i, &read_ready_fd))
 				continue ;
 			int is_new_socket = 0;
@@ -189,7 +192,7 @@ void	Server::run(){
 			}
 		}
 		//Writing Response
-		for(int i = 0; i < FD_SETSIZE; i ++){
+		for(int i = 0; i < this->max_fd + 1; i ++){
 			if (!FD_ISSET(i, &write_ready_fd))
 				continue ;
 			sendResponse(i);
@@ -200,6 +203,7 @@ void	Server::run(){
 		}
 		std::cout << "Processing total: " << receive_total << std::endl;
 		std::cout << "Current processing: " << current << std::endl;
+		usleep(1000);
 	}
 }
 
@@ -208,6 +212,7 @@ void	Server::run(){
  * when success, -1 when error
  */
 int	Server::acceptNewConnection(int socket_fd){
+	std::cout << "inisde accept new connection" << std::endl;
 	int new_socket = accept(socket_fd, NULL, NULL);
 
 	if (new_socket < 0){
@@ -215,6 +220,10 @@ int	Server::acceptNewConnection(int socket_fd){
 		close(socket_fd);
 		return (-1);
 	}
+	fcntl(new_socket, F_SETFL, O_NONBLOCK);
+	std::cout << "New socket: " << new_socket << std::endl;
+	if (new_socket > this->max_fd)
+		this->max_fd = new_socket;
 	this->client_requests[new_socket].server_fd = socket_fd;
 	this->client_requests[new_socket].port = this->sockets_port[socket_fd];
 	this->client_requests[new_socket].status_code = 0;
@@ -222,7 +231,6 @@ int	Server::acceptNewConnection(int socket_fd){
 		std::cout << "New client joined at socket " << new_socket << std::endl;
 		std::cout << "Join at port " << this->sockets_port[socket_fd] << std::endl;
 	}
-	fcntl(new_socket, F_SETFL, O_NONBLOCK);
 	return (new_socket);
 }
 
@@ -230,7 +238,7 @@ int	Server::acceptNewConnection(int socket_fd){
  * @brief Receive the all message sent by client. Return -1 when client close connection or error
  *  1 when completed, 0 when ongoing
  */
-int	Server::handleConnection(int socket_fd){
+void	Server::handleConnection(int socket_fd){
 	int		bytes_read;
 	char	buffer[BUFFER_SIZE];
 
@@ -416,6 +424,8 @@ void	Server::sendResponse(int socket_fd){
 		}
 	}
 	std::cout << COLOR_MAGENTA << "Sent " << total_sent << " bytes to socket " << socket_fd << COLOR_RESET << std::endl;
+	if (socket_fd == this->max_fd)
+		this->max_fd --;
 	this->client_requests.erase(socket_fd);
 	this->client_responses.erase(socket_fd);
 	close(socket_fd);
