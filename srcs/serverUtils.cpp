@@ -42,6 +42,9 @@ int checkCGIRequest(std::string &path, serverConf &server, requestData &request)
 		return (0);
 	}
 	std::string::size_type query_string_pos = path.find_last_of("?");
+	if (query_string_pos != std::string::npos){
+		request.query_string = path.substr(query_string_pos + 1);
+	}
 	std::string extension = path.substr(extension_pos, query_string_pos - extension_pos);
 	if (extension.find("/") != std::string::npos)
 		extension = extension.substr(0, extension.find("/"));
@@ -53,6 +56,7 @@ int checkCGIRequest(std::string &path, serverConf &server, requestData &request)
 	}
 	request.interpretor = it->second;
 	request.file_path = path.substr(0, extension_pos) + extension;
+
 	return (1);
 }
 

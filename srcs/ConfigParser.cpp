@@ -43,8 +43,9 @@ int	ConfigParser::parse(std::string &path){
 
 	buffer << file.rdbuf();
 	this->tokens = this->tokenizer.Tokenize(buffer.str());
-	if (parseToken() == 0)
+	if (parseToken() == 0){
 		return (0);
+	}
 	file.close();
 	return (1);
 }
@@ -72,12 +73,16 @@ int	ConfigParser::parseToken(){
 			continue ;
 		}
 		if (this->tokens[i] == "location"){
-			if (parseLocation(i, indent_level, current_conf) == 0)
+			if (parseLocation(i, indent_level, current_conf) == 0){
+				delete current_conf;
 				return (0);
+			}
 		}
 		else{
-			if (parseServer(i, indent_level, current_conf) == 0)
+			if (parseServer(i, indent_level, current_conf) == 0){
+				delete current_conf;
 				return (0);
+			}
 		}
 	}
 	if (current_conf != NULL){
@@ -184,11 +189,25 @@ int	ConfigParser::parseLocation(size_t &current, int indent_level, serverConf *c
 		}
 		if (keyword_found == -1){
 			std::cout << COLOR_RED << "Error. Invalid keyword when parsing " << this->tokens[current] << COLOR_RESET << std::endl;
+			if (currentConf != NULL){
+				std::map<std::string, locationInfo *>::iterator it;
+				for (it = currentConf->locations.begin(); it != currentConf->locations.end();) {
+    				delete it->second;
+   					currentConf->locations.erase(it++);
+				}
+			}
 			delete new_location;
 			return (0);
 		}
 		if ((this->*key_funcs[keyword_found])(current, new_location) == 0){
 			delete new_location;
+			if (currentConf != NULL){
+				std::map<std::string, locationInfo *>::iterator it;
+				for (it = currentConf->locations.begin(); it != currentConf->locations.end();) {
+    				delete it->second;
+   					currentConf->locations.erase(it++);
+				}
+			}
 			return (0);
 		}
 		current += 1;
@@ -382,7 +401,7 @@ int	ConfigParser::parseMaxBodySize(size_t &current, locationInfo *current_loc){
 	if (!(iss >> max_body_size)){
 		std::cout << COLOR_RED << "Error. Invalid max body size: " << this->tokens[current] << COLOR_RESET << std::endl;
 		return (0);
-	}
+	} 
 	current_loc->max_body_size_set = 1;
 	current_loc->max_body_size = max_body_size;
 	current += 1;

@@ -48,6 +48,7 @@
  * @param envp The environment variable which will be pass through when execute the cgi.
  */
 struct requestData{
+	int parsed;
 	int server_fd;
 	int status_code;
 	std::string port;
@@ -82,8 +83,7 @@ class Server{
 		std::ofstream				database;
 		
 		int				acceptNewConnection(int socket_fd);
-		// int				handleConnection(int socket_fd);
-		void			handleConnection(int socket_fd);
+		int 			handleConnection(int socket_fd);
 		void			handleRequest(int socket_fd);
 		void			sendResponse(int socket_fd);
 		int				checkReceive(std::string &msg);

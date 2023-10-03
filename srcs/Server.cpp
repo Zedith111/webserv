@@ -100,11 +100,11 @@ int	Server::init(std::vector<serverConf *> confs){
 				freeaddrinfo(res);
 				return (0);
 			}
+			freeaddrinfo(res);
 			std::cout << COLOR_GREEN << "Socket " << socket_fd << " listening for port " << conf.port_number[i] << COLOR_RESET << std::endl;
 			std::cout << COLOR_GREEN << "Server " << conf.host << ":" << conf.port_number[i] << " initialize successfully" << COLOR_RESET << std::endl;
 		}
 	}
-	freeaddrinfo(res);	
 	return (1);
 }
 
@@ -122,13 +122,12 @@ void	Server::run(){
 	int receive_total = 0;
 	int current = 0;
 
-	timeout.tv_sec = 5;
+	timeout.tv_sec = 7;
 	timeout.tv_usec = 0;
 	FD_ZERO(&this->read_fd);
 	FD_ZERO(&this->write_fd);
 	std::map<int, serverConf>::iterator it = this->servers.begin();
 	this->max_fd = it->first;
-	std::cout << "initial max fd: " << this->max_fd << std::endl;
 	for (it = this->servers.begin(); it != this->servers.end(); it++){
 		FD_SET(it->first, &this->read_fd);
 		if (it->first > this->max_fd)
@@ -174,13 +173,15 @@ void	Server::run(){
 				current ++;
 				FD_SET(new_socket, &this->read_fd);
 				is_new_socket = 1;
-				break ;
 			}
 			if (!is_new_socket){
 				int handle_ret = handleConnection(i);
 				if (handle_ret == -1){
+					if (i > this->max_fd)
+						this->max_fd --;
 					FD_CLR(i, &this->read_fd);
 					this->client_requests.erase(i);
+					this->client_responses.erase(i);
 					close(i);
 				}
 				if (handle_ret == 1){
@@ -188,7 +189,6 @@ void	Server::run(){
 					FD_CLR(i, &this->read_fd);
 					handleRequest(i);
 				}
-				break ;
 			}
 		}
 		//Writing Response
@@ -199,11 +199,11 @@ void	Server::run(){
 			current --;
 			std::cout << "Closing socket " << i << std::endl;
 			FD_CLR(i, &this->write_fd); 
-			break ;
 		}
 		std::cout << "Processing total: " << receive_total << std::endl;
 		std::cout << "Current processing: " << current << std::endl;
-		usleep(1000);
+		if (TEST == 1)
+			usleep(3000);
 	}
 }
 
@@ -212,7 +212,6 @@ void	Server::run(){
  * when success, -1 when error
  */
 int	Server::acceptNewConnection(int socket_fd){
-	std::cout << "inisde accept new connection" << std::endl;
 	int new_socket = accept(socket_fd, NULL, NULL);
 
 	if (new_socket < 0){
@@ -238,7 +237,7 @@ int	Server::acceptNewConnection(int socket_fd){
  * @brief Receive the all message sent by client. Return -1 when client close connection or error
  *  1 when completed, 0 when ongoing
  */
-void	Server::handleConnection(int socket_fd){
+int Server::handleConnection(int socket_fd){
 	int		bytes_read;
 	char	buffer[BUFFER_SIZE];
 
@@ -247,12 +246,13 @@ void	Server::handleConnection(int socket_fd){
 
 	if (bytes_read == 0){
 		std::cout << "Client hangout at " << socket_fd << std::endl;
+		this->client_requests.erase(socket_fd);
+		this->client_responses.erase(socket_fd);
 		close(socket_fd);
 		return (-1);
 	}
 	if (bytes_read < 0){
 		std::cout << COLOR_RED << "Error. recv failed at " << socket_fd << ". " << strerror(errno) << COLOR_RESET <<  std::endl;
-
 		this->client_responses[socket_fd] = handleError(500, this->servers[this->client_requests[socket_fd].server_fd]);
 		this->client_requests[socket_fd].status_code = 500;
 		return (-1);
@@ -266,6 +266,7 @@ void	Server::handleConnection(int socket_fd){
 	}
 	return (checkReceive(this->client_requests[socket_fd].whole_request));
 }
+
 
 /**
  * @brief Evaluate the request header and body. The order are as following

@@ -1,4 +1,4 @@
-`valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes  --verbose     
+valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes  --verbose     
      --log-file=valgrind-out.txt          ./webserv config/test.conf
 
 To add new error page
@@ -6,17 +6,18 @@ To add new error page
     configParser::initDefaultErrorPages
     Server::Server
 
-# NGINX Check
-location /dir {
-    index Youpie
-}
-when access /dir/nop will return 404 or not
+Fix client max body size
+upper cgi
 
-Post/Put to /some_path, check will save it.
-upload store and path, which will be precednece
+
+## server
+    Multiple server work differently
+    different port can be connect
+    duplicate port
+
 
 ## Get
-    direct file
+    direct file/not found
     index
     autoindex
         nesting directory with autoindex
@@ -26,60 +27,22 @@ upload store and path, which will be precednece
     Precendence->have both
 
 ## Post
+    normal and multipart save
     Duplicate upload of same file
+    upload large file
+
+## Delete
+
+## CGI
+    Hello
+    print env,with query
+    interpretor not found
 
 # To Do
     Check leak
-    Use calculated maxfd
 
 
-
-# Parser 
-    When no root and cgi bin specified, use current directory as root
-
-# Handle request
-    Improve path finding
-    new cgi request struct
-    fix leak when invalid cgi_bin path
-    fix when recv failed
-    fix when select bad file descriptor(google serach :continue when select() failed)
-    check is cgi request
-    execute cgi
-    when select failed, handle properly,dont quit
-    when not member function failed, close socket and clear in FdSet
-    gprod
-    flush
     
-Location block before server block
-Mulitiple root present
-Check leak
-Handle address other than localhost
-parser->data structure
-    map-><path, actual path>
-location->data structure
-Add map to store request and response
-separate header and body
-nginx config
-
-
-Test listen to all port if not specified
-Test address 0.0.0.0
-Test connect to a port but used wrong port for client
-Test connect to a specific host with a client
-multiple port.
-multiple server
-Accept should not quit
-if too long not receive header, send error
-/directory/ should have different file
-
-
-sin_port = 0 bind to all port
-server_addr.sin_family = AF_INET;
-    server_addr.sin_port = 0;  // Bind to all ports
-    server_addr.sin_addr.s_addr = INADDR_ANY;  // Bind to all available interfaces
-
-# Information
-host cat etc/hosts
 
 
 
@@ -93,12 +56,6 @@ https://www.oreilly.com/openbook/cgi/ch02_02.html
 
 write->query string to some file
 
-# CGI 
-Add handler "cgi-dir" extension
-better method to detect CGI script
-Check method
-    Get->get query string
-    Post->in body
 
 <HTML>
 <HEAD><TITLE>Simple Form!</TITLE></HEAD>
@@ -130,6 +87,3 @@ Path finding
         -Check for max file size
 
 
-
-
-https://github.com/cclaude42/webserv/blob/master/srcs/cgi/CgiHandler.cpp

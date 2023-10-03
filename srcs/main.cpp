@@ -43,7 +43,7 @@ int	main(int argc, char **argv){
 	signal(SIGPIPE, SIG_IGN);
 	if (!server.init(confs))
 		return (1);
-	server.run();	
+	server.run();
 }
 
 
