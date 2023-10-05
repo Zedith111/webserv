@@ -1,8 +1,6 @@
 # Overview
-This is a HTPP1.1 server created in C++.
+This project is part of 42 core curriculum. The goal is to create a server that is compatible to HTTP 1.1 standard. The server can also handle CGI request and multiple client connection through multiplexing.This project is done with c++ 98
 
-
-# Configuration File parameter
 # Useful Reference
 
 [Beej's Guide to Network Programming](https://beej.us/guide/bgnet/html/#getaddrinfoprepare-to-launch)
